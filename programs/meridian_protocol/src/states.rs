@@ -14,8 +14,13 @@ pub struct LendingPool{
     pub protocol_usdc_vault: Pubkey,  //VAULT FOR THE PROTOCOL USDC TREASURY
     
     //BUMP
-    pub lending_pool_bump: u8,
-    
+    pub bump_lending_pool: u8,
+    pub bump_seize_vault: u8,
+    pub bump_fee_vault: u8,
+    pub bump_verification_vault: u8,
+    pub bump_usdc_ata_protocol: u8,
+    pub bump_lp_ata_protocol: u8,
+
     //LIQUIDATION 
     pub liquidation_threshold_bps: u16,
     pub liquidation_penalty_bps: u16,
