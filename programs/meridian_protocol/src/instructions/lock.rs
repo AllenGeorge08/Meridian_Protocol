@@ -9,10 +9,8 @@ use crate::errors::Errors;
 // ███      ███ ▀███████ ███  ▀███ ▄███▄ ██████▀  ▄███▄ ███  ███ ███    ███ 
                                                                          
                                                                                                                                                                  
-
-
 #[derive(Accounts)]
-pub struct AddAdmin<'info>{
+pub struct LockPool<'info>{
     #[account(mut)]
     pub authority: Signer<'info>,
     #[account(
@@ -21,27 +19,15 @@ pub struct AddAdmin<'info>{
         bump = lending_pool.bump_lending_pool
     )] 
     pub lending_pool: Box<Account<'info,LendingPool>>,
-      #[account(
-        mut,
-        seeds = [b"meridian_pool_admin_registry",lending_pool.key().as_ref()],
-        bump
-    )] 
-    pub admin_registry: Box<Account<'info,AdminRegistry>>,
     pub system_program: Program<'info, System>,
 }
 
-
-impl<'info> AddAdmin<'info>{
-    pub fn add_admin(&mut self, admin: Pubkey) -> Result<()>{
-        require!(self.authority.key() == self.lending_pool.owner.key(),Errors::OnlyAuthority);
-        self.add_admin(admin)?;
-        msg!("Admin added : {}", admin);
+impl<'info> LockPool<'info>{
+    pub fn lock_pool(&mut self) -> Result<()>{
+        require!(self.authority.key() == self.lending_pool.owner.key(), Errors::OnlyAuthority);
+        require!(!self.lending_pool.is_locked, Errors::PoolAlreadyLocked);
+        self.lending_pool.is_locked = true;
+        msg!("Pool Locked");
         Ok(())
-   }
-
-   pub fn is_admin(&mut self,admin: Pubkey) -> bool{
-        let _ = self.admin_registry.is_admin(admin);
-        return false
-   }
+    }
 }
-
