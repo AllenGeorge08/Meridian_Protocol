@@ -1,4 +1,5 @@
 pub mod add_admin;
+pub mod lending;
 pub use add_admin::*;
 
 pub mod initialize;

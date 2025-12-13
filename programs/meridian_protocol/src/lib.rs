@@ -1,6 +1,6 @@
-pub mod states;
-pub mod instructions;
 pub mod errors;
+pub mod instructions;
+pub mod states;
 pub use states::*;
 
 use anchor_lang::prelude::*;

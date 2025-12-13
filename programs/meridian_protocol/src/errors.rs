@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 #[error_code]
-pub enum Errors{
+pub enum Errors {
     #[msg("Only Pool Owner Can Add Or Remove Admin")]
     OnlyAuthority,
     #[msg("Max Admins Reached, Cannot Add More")]
@@ -15,5 +15,11 @@ pub enum Errors{
     #[msg("Pool Is Already Locked")]
     PoolAlreadyLocked,
     #[msg("Pool Is Already  UnLocked")]
-    PoolAlreadyUnLocked
+    PoolAlreadyUnLocked,
+    #[msg("Null Deposits Not Allowed")]
+    NullDepositNotAllowed,
+    #[msg("Pool Locked")]
+    PoolLocked,
+    #[msg("Only the lender can withdraw")]
+    InvalidUser,
 }

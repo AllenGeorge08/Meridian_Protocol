@@ -2,14 +2,11 @@ use anchor_lang::prelude::*;
 
 use crate::errors::Errors;
 
-// ▄▄▄      ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄▄▄▄   ▄▄▄▄▄   ▄▄▄▄   ▄▄▄    ▄▄▄ 
-// ████▄  ▄████ ███▀▀▀▀▀ ███▀▀███▄  ███  ███▀▀██▄  ███  ▄██▀▀██▄ ████▄  ███ 
-// ███▀████▀███ ███▄▄    ███▄▄███▀  ███  ███  ███  ███  ███  ███ ███▀██▄███ 
-// ███  ▀▀  ███ ███      ███▀▀██▄   ███  ███  ███  ███  ███▀▀███ ███  ▀████ 
-// ███      ███ ▀███████ ███  ▀███ ▄███▄ ██████▀  ▄███▄ ███  ███ ███    ███ 
-                                                                         
-                                                                                                                                                                 
-
+// ▄▄▄      ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄▄▄▄   ▄▄▄▄▄   ▄▄▄▄   ▄▄▄    ▄▄▄
+// ████▄  ▄████ ███▀▀▀▀▀ ███▀▀███▄  ███  ███▀▀██▄  ███  ▄██▀▀██▄ ████▄  ███
+// ███▀████▀███ ███▄▄    ███▄▄███▀  ███  ███  ███  ███  ███  ███ ███▀██▄███
+// ███  ▀▀  ███ ███      ███▀▀██▄   ███  ███  ███  ███  ███▀▀███ ███  ▀████
+// ███      ███ ▀███████ ███  ▀███ ▄███▄ ██████▀  ▄███▄ ███  ███ ███    ███
 
 #[account]
 #[derive(InitSpace)]
@@ -20,7 +17,7 @@ pub struct LendingPool {
     pub total_borrowed: u64,
 
     pub protocol_admin_count: u8,
-    pub withdrawal_epoch: u64,       //WITHDRAWAL EPOCH PERIOD
+    pub withdrawal_epoch: i64,       //WITHDRAWAL EPOCH PERIOD
     pub lp_total_supply: u64,        //TOTAL LP SUPPLY/SHARES MINTED
     pub usdc_mint: Pubkey,           //MINT FOR THE USDC
     pub protocol_usdc_vault: Pubkey, //VAULT FOR THE PROTOCOL USDC TREASURY
@@ -35,7 +32,6 @@ pub struct LendingPool {
     pub liquidation_threshold_bps: u16,
     pub liquidation_penalty_bps: u16,
     pub liquidator_reward_bps: u16,
-   
 
     //UTILIZATION RATE TIERS
     pub utilization_rate_tier_1_bps: u16,
@@ -72,7 +68,7 @@ pub struct LoanState {
     pub principal_borrowed: u64,
     pub interest_accrued: u64,
     pub outstanding_debt: u64,
-    pub borrowed_at: u64,
+    pub borrowed_at: i64,
     pub last_interest_accrued: u64,
     pub collateral_value_usd: u64,
     pub status: u8, //STATUS = 0(Active), 1(REPAID), 2 (LIQUIDATABLE), 3(LIQUIDATED)
@@ -84,37 +80,37 @@ pub struct LoanState {
 pub struct Lender {
     pub owner: Pubkey,
     pub lp_shares: u64,
-    pub deposited_at: u64,
+    pub deposited_at: i64,
     pub total_deposited: u64,
     pub total_interest_accrued: u64,
     pub bump: u8,
 }
 
 #[account]
-pub struct AdminRegistry{
-    pub admins: Vec<Pubkey>
+pub struct AdminRegistry {
+    pub admins: Vec<Pubkey>,
 }
 
-impl AdminRegistry{
+impl AdminRegistry {
     pub const MAX_ADMINS: usize = 10;
 
-    pub fn space(admin_count: usize) -> usize{
-        8 + 4 + (admin_count*32) //DISCRIMINATOR + VEC LENGTH PREFIX + PUBKEYS
+    pub fn space(admin_count: usize) -> usize {
+        8 + 4 + (admin_count * 32) //DISCRIMINATOR + VEC LENGTH PREFIX + PUBKEYS
     }
 
-    pub fn add_admin(&mut self, admin: Pubkey) -> Result<()>{
+    pub fn add_admin(&mut self, admin: Pubkey) -> Result<()> {
         require!(self.admins.len() <= Self::MAX_ADMINS, Errors::MaxAdmins);
         require!(!self.admins.contains(&admin), Errors::AdminAlreadyExists);
         self.admins.push(admin);
         Ok(())
     }
 
-    pub fn remove_admin(&mut self,admin_index: usize) -> Result<()>{
+    pub fn remove_admin(&mut self, admin_index: usize) -> Result<()> {
         self.admins.remove(admin_index);
-        Ok(())        
+        Ok(())
     }
 
-    pub fn is_admin(&mut self,admin: Pubkey) -> Result<()>{
+    pub fn is_admin(&mut self, admin: Pubkey) -> Result<()> {
         let _ = self.admins.contains(&admin);
         Ok(())
     }
