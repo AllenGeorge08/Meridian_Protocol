@@ -27,7 +27,7 @@ impl<'info> UnLockPool<'info> {
             self.authority.key() == self.lending_pool.owner.key(),
             Errors::OnlyAuthority
         );
-        require!(!self.lending_pool.is_locked, Errors::PoolAlreadyUnLocked);
+        require!(self.lending_pool.is_locked, Errors::PoolAlreadyUnLocked);
         self.lending_pool.is_locked = false;
         msg!("Pool Unlocked");
         Ok(())

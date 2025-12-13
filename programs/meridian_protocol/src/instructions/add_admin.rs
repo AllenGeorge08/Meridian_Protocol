@@ -33,7 +33,7 @@ impl<'info> AddAdmin<'info> {
             self.authority.key() == self.lending_pool.owner.key(),
             Errors::OnlyAuthority
         );
-        self.add_admin(admin)?;
+        self.admin_registry.add_admin(admin)?;
         msg!("Admin added : {}", admin);
         Ok(())
     }

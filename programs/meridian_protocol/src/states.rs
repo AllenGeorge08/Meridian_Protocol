@@ -65,14 +65,21 @@ pub struct LendingPool {
 pub struct LoanState {
     pub borrower: Pubkey,
     pub nft_mint: Pubkey,
+    pub verification_id: u32,
+    pub is_sent_for_verification: bool,
+    pub is_verified: bool,
     pub principal_borrowed: u64,
     pub interest_accrued: u64,
     pub outstanding_debt: u64,
     pub borrowed_at: i64,
     pub last_interest_accrued: u64,
     pub collateral_value_usd: u64,
-    pub status: u8, //STATUS = 0(Active), 1(REPAID), 2 (LIQUIDATABLE), 3(LIQUIDATED)
-    pub bump_loan_state: u8,
+    pub loan_status: u8, //STATUS = 0(Active), 1(REPAID), 2 (LIQUIDATABLE), 3(LIQUIDATED)
+    pub bump_borrower_state: u8,
+    pub weight_in_grams: u64,
+    pub purity_in_bps: u16,
+
+    pub origination_fee: u64,
 }
 
 #[account]

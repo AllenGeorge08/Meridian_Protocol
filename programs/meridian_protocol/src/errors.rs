@@ -1,5 +1,11 @@
 use anchor_lang::prelude::*;
 
+// ▄▄▄      ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄▄▄▄   ▄▄▄▄▄   ▄▄▄▄   ▄▄▄    ▄▄▄
+// ████▄  ▄████ ███▀▀▀▀▀ ███▀▀███▄  ███  ███▀▀██▄  ███  ▄██▀▀██▄ ████▄  ███
+// ███▀████▀███ ███▄▄    ███▄▄███▀  ███  ███  ███  ███  ███  ███ ███▀██▄███
+// ███  ▀▀  ███ ███      ███▀▀██▄   ███  ███  ███  ███  ███▀▀███ ███  ▀████
+// ███      ███ ▀███████ ███  ▀███ ▄███▄ ██████▀  ▄███▄ ███  ███ ███    ███
+
 #[error_code]
 pub enum Errors {
     #[msg("Only Pool Owner Can Add Or Remove Admin")]
@@ -22,4 +28,8 @@ pub enum Errors {
     PoolLocked,
     #[msg("Only the lender can withdraw")]
     InvalidUser,
+    #[msg("Asset Not Verified, Cannot deposit")]
+    AssetNotVerified,
+    #[msg("Asset already sent for verification")]
+    AssetAlreadySentForVerification,
 }
