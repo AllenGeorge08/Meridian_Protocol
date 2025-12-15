@@ -1,5 +1,6 @@
 pub mod add_admin;
 pub mod lending;
+pub mod verify_asset;
 pub use lending::*;
 
 pub mod withdraw;

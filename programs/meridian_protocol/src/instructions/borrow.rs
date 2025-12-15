@@ -102,10 +102,22 @@ impl<'info> Borrow<'info> {
         Ok(())
     }
 
-    pub fn borrow(&mut self) -> Result<()> {
-        require!(self.lending_pool.is_locked == false, Errors::PoolLocked);
+    pub fn is_asset_verified(&mut self) -> bool {
+        if self.borrower_state.is_verified {
+            println!("Your asset is verified");
+            return true;
+        } else {
+            println!("Your asset is not verified")
+        }
+        return false;
+    }
 
-        self.borrow_assets()?;
+    //e WE'RE USING MOCK ORACLE AS FOR NOW...
+    pub fn borrow(&mut self, use_pyth: bool) -> Result<()> {
+        require!(self.lending_pool.is_locked == false, Errors::PoolLocked);
+        require!(self.is_asset_verified(), Errors::AssetNotVerified);
+
+        self.borrow_assets(use_pyth)?;
         Ok(())
     }
 
@@ -133,8 +145,38 @@ impl<'info> Borrow<'info> {
         Ok(())
     }
 
-    fn borrow_assets(&mut self) -> Result<()> {
-        let borrowable_value = self.calculate_borrowable_value_of_the_asset_Pyth()?;
+    fn collect_collateral(&mut self) -> Result<()> {
+        require!(
+            self.borrower_state.is_verified == false && self.borrower_state.is_rejected,
+            Errors::CannotCollectCollateral
+        );
+
+        let key = self.lending_pool.key();
+        let bump = &[self.lending_pool.bump_verification_vault];
+        let signer_seeds: &[&[u8]] = &[b"meridian_verification_vault", key.as_ref(), bump];
+
+        let seeds = &[signer_seeds];
+
+        TransferV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
+            .payer(&self.borrower.to_account_info())
+            .asset(&self.rwa_asset.to_account_info())
+            .new_owner(&self.borrower.to_account_info())
+            .authority(Some(&self.protocol_verification_vault.to_account_info()))
+            .invoke_signed(seeds)?;
+
+        msg!("Collateral Collected Back: {}", self.rwa_asset.key());
+
+        Ok(())
+    }
+
+    fn borrow_assets(&mut self, use_pyth: bool) -> Result<()> {
+        let borrowable_value: u64;
+        if use_pyth {
+            borrowable_value = self.calculate_borrowable_value_of_the_asset_Pyth()?;
+        } else {
+            borrowable_value = self.calculate_borrowable_value_of_the_asset_mock_oracle()?;
+        }
+
         let origination_fee = self.calculate_origination_fee(borrowable_value)?;
 
         let accounts = TransferChecked {
@@ -158,15 +200,31 @@ impl<'info> Borrow<'info> {
         return Ok(total_value_borrowed * self.lending_pool.origination_fee_bps as u64 / 10_000);
     }
 
-    pub fn calculate_borrowable_value_of_the_asset_mock_oracle(&mut self) -> Result<()> {
+    pub fn calculate_borrowable_value_of_the_asset_mock_oracle(&mut self) -> Result<(u64)> {
         let mock_oracle = &mut self.mock_oracle;
 
         let max_age = 100;
-        let gold_price_per_troy_ounce_amount = mock_oracle.get_price_no_older_than(max_age);
+        let gold_price_per_gram_scaled = mock_oracle.get_price_per_gram(max_age)?;
+        //e Price of the collateral = weight in grams * Purity of the gold(in bps) * Gold price latest(In grams)
+        let weight_in_grams = self.borrower_state.weight_in_grams;
+        let purity_in_bps = self.borrower_state.purity_in_bps;
+        let ltv = self.lending_pool.loan_to_value_bps;
 
-        const GRAMS_PER_TROY_OUNCE_SCALED: i64 = 31_103_476; // Troy ounce -> grams i.e 31.103476 * 10**6 to avoid rounding errors
+        let price_of_the_collateral = (weight_in_grams as u64)
+            .checked_mul(gold_price_per_gram_scaled as u64)
+            .unwrap()
+            .checked_mul(purity_in_bps as u64)
+            .unwrap()
+            .checked_mul(ltv as u64)
+            .unwrap()
+            .checked_div(1_00_000)
+            .unwrap()
+            .checked_div(10_000)
+            .unwrap()
+            .checked_div(1_000_000)
+            .unwrap();
 
-        Ok(())
+        Ok(price_of_the_collateral)
     }
 
     pub fn calculate_borrowable_value_of_the_asset_Pyth(&mut self) -> Result<u64> {

@@ -36,4 +36,8 @@ pub enum Errors {
     StaleOracle,
     #[msg("Invalid Price")]
     InvalidPrice,
+    #[msg("Incorrect Verification ID")]
+    IncorrectVerificationId,
+    #[msg("Cannot collect collateral, asset deposited")]
+    CannotCollectCollateral,
 }

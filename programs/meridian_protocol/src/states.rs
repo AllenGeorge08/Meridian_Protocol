@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::*, solana_program::example_mocks};
+use anchor_lang::prelude::*;
 
 use crate::errors::Errors;
 
@@ -67,6 +67,7 @@ pub struct LoanState {
     pub borrower: Pubkey,
     pub nft_mint: Pubkey,
     pub verification_id: u32,
+    pub is_rejected: bool,
     pub is_sent_for_verification: bool,
     pub is_verified: bool,
     pub principal_borrowed: u64,
@@ -79,7 +80,6 @@ pub struct LoanState {
     pub bump_borrower_state: u8,
     pub weight_in_grams: i64,
     pub purity_in_bps: u16,
-
     pub origination_fee: u64,
 }
 
