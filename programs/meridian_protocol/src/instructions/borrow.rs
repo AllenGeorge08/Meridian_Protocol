@@ -53,7 +53,7 @@ pub struct Borrow<'info> {
     ///CHECK: Safe,Will be created on the client side
     #[account(mut)]
     pub rwa_asset: UncheckedAccount<'info>,
-    ///CHECK: 
+    ///CHECK:
     #[account(
         mut,
         seeds = [b"meridian_verification_vault", lending_pool.key().as_ref()],
@@ -158,24 +158,38 @@ impl<'info> Borrow<'info> {
         let gold_usdc_feed_id = get_feed_id_from_hex(GOLD_USD_PRICE_FEED)?;
 
         let clock = &Clock::get()?;
-        let gold_price = price_update_account
-            .get_price_no_older_than(clock, MAX_AGE, &gold_usdc_feed_id)?
-            ;
+        let gold_price =
+            price_update_account.get_price_no_older_than(clock, MAX_AGE, &gold_usdc_feed_id)?;
 
         let gold_price_per_troy_ounce_amount = gold_price.price;
 
         //Pyth returns value in troy unit = 31.103476 grams
-        const GRAMS_PER_TROY_OUNCE_SCALED: i64= 31_103_476; // Troy ounce -> grams i.e 31.103476 * 10**6 to avoid rounding errors
+        const GRAMS_PER_TROY_OUNCE_SCALED: i64 = 31_103_476; // Troy ounce -> grams i.e 31.103476 * 10**6 to avoid rounding errors
 
-        let gold_price_per_gram_scaled = gold_price_per_troy_ounce_amount.checked_mul(1_000_000).unwrap().checked_div(GRAMS_PER_TROY_OUNCE_SCALED).unwrap();
+        let gold_price_per_gram_scaled = gold_price_per_troy_ounce_amount
+            .checked_mul(1_000_000)
+            .unwrap()
+            .checked_div(GRAMS_PER_TROY_OUNCE_SCALED)
+            .unwrap();
 
         //e Price of the collateral = weight in grams * Purity of the gold(in bps) * Gold price latest(In grams)
         let weight_in_grams = self.borrower_state.weight_in_grams;
         let purity_in_bps = self.borrower_state.purity_in_bps;
         let ltv = self.lending_pool.loan_to_value_bps;
-        
-        let price_of_the_collateral = (weight_in_grams as u64).checked_mul(gold_price_per_gram_scaled as u64).unwrap().checked_mul(purity_in_bps as u64).unwrap().checked_mul(ltv as u64).unwrap().checked_div(1_00_000).unwrap().checked_div(10_000).unwrap().checked_div(1_000_000).unwrap();
 
+        let price_of_the_collateral = (weight_in_grams as u64)
+            .checked_mul(gold_price_per_gram_scaled as u64)
+            .unwrap()
+            .checked_mul(purity_in_bps as u64)
+            .unwrap()
+            .checked_mul(ltv as u64)
+            .unwrap()
+            .checked_div(1_00_000)
+            .unwrap()
+            .checked_div(10_000)
+            .unwrap()
+            .checked_div(1_000_000)
+            .unwrap();
 
         Ok(price_of_the_collateral)
     }

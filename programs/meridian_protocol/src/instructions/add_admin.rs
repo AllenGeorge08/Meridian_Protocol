@@ -1,4 +1,5 @@
 use crate::errors::Errors;
+use crate::instructions::lending;
 use crate::states::*;
 use anchor_lang::prelude::*;
 
@@ -21,7 +22,7 @@ pub struct AddAdmin<'info> {
     #[account(
         mut,
         seeds = [b"meridian_pool_admin_registry",lending_pool.key().as_ref()],
-        bump
+        bump = lending_pool.bump_admin_registry
     )]
     pub admin_registry: Box<Account<'info, AdminRegistry>>,
     pub system_program: Program<'info, System>,

@@ -21,3 +21,6 @@ pub use unlock::*;
 
 pub mod borrow;
 pub use borrow::*;
+
+pub mod mock_oracle;
+pub use mock_oracle::*;

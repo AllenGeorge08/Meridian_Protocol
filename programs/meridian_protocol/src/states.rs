@@ -27,6 +27,7 @@ pub struct LendingPool {
     pub bump_lending_pool: u8,
     pub bump_seize_vault: u8,
     pub bump_verification_vault: u8,
+    pub bump_admin_registry: u8,
 
     //LIQUIDATION
     pub liquidation_threshold_bps: u16,
@@ -117,8 +118,16 @@ impl AdminRegistry {
         Ok(())
     }
 
-    pub fn is_admin(&mut self, admin: Pubkey) -> Result<()> {
-        let _ = self.admins.contains(&admin);
-        Ok(())
+    pub fn is_admin(&mut self, admin: Pubkey) -> bool {
+        return self.admins.contains(&admin);
     }
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct MockOracleState {
+    pub price: i64,
+    pub exponent: i32,
+    pub last_updated: i64,
+    pub bump: u8,
 }

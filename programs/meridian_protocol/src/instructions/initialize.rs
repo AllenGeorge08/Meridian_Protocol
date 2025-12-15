@@ -1,4 +1,4 @@
-use crate::states::{AdminRegistry, LendingPool};
+use crate::states::{AdminRegistry, LendingPool, MockOracleState};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
@@ -33,6 +33,14 @@ pub struct Initialize<'info> {
         bump
     )]
     pub admin_registry: Box<Account<'info, AdminRegistry>>,
+    #[account(
+        init_if_needed,
+        space = 8 + MockOracleState::INIT_SPACE,
+        payer = authority,
+        seeds = [b"meridian_mock_oracle",lending_pool.key().as_ref()],
+        bump
+    )]
+    pub mock_oracle: Box<Account<'info, MockOracleState>>,
     #[account(
         init_if_needed,
         payer = authority,
@@ -100,6 +108,8 @@ impl<'info> Initialize<'info> {
     ) -> Result<()> {
         let lending_pool = &mut self.lending_pool;
 
+        let mock_oracle = &mut self.mock_oracle;
+
         lending_pool.owner = self.authority.key();
         lending_pool.admin_registry = self.admin_registry.key();
         lending_pool.withdrawal_epoch = withdrawal_epoch;
@@ -107,10 +117,14 @@ impl<'info> Initialize<'info> {
         lending_pool.usdc_mint = self.mint.key();
         lending_pool.protocol_usdc_vault = self.lending_pool_usdc_ata.key();
 
+        //BUMPS
         lending_pool.bump_lending_pool = bumps.lending_pool;
         lending_pool.bump_seize_vault = bumps.protocol_seize_vault;
         lending_pool.bump_verification_vault = bumps.protocol_verification_vault;
+        lending_pool.bump_admin_registry = bumps.admin_registry;
+        mock_oracle.bump = bumps.mock_oracle;
 
+        //LIQUIDATION PARAMS
         lending_pool.liquidation_threshold_bps = liquidation_threshold_bps;
         lending_pool.liquidation_penalty_bps = liquidation_penalty_bps;
         lending_pool.liquidator_reward_bps = liquidator_reward_bps;
