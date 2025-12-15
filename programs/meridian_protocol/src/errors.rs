@@ -34,4 +34,6 @@ pub enum Errors {
     AssetAlreadySentForVerification,
     #[msg("Oracle Price Is Stale")]
     StaleOracle,
+    #[msg("Invalid Price")]
+    InvalidPrice,
 }

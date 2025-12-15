@@ -162,7 +162,8 @@ impl<'info> Borrow<'info> {
         let mock_oracle = &mut self.mock_oracle;
 
         let max_age = 100;
-        let gold_price_per_troy_ounce_amount = mock_oracle;
+        let gold_price_per_troy_ounce_amount = mock_oracle.get_price_no_older_than(max_age);
+
         const GRAMS_PER_TROY_OUNCE_SCALED: i64 = 31_103_476; // Troy ounce -> grams i.e 31.103476 * 10**6 to avoid rounding errors
 
         Ok(())

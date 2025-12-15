@@ -36,7 +36,8 @@ pub struct MockOracle<'info> {
 impl<'info> MockOracle<'info> {
     pub fn update_oracle_values(&mut self, price: i64, exponent: i32) -> Result<(i64, i32)> {
         require!(
-            self.owner_oracle.key() == self.lending_pool.owner || self.admin_registry.is_admin(self.owner_oracle.key()),
+            self.owner_oracle.key() == self.lending_pool.owner
+                || self.admin_registry.is_admin(self.owner_oracle.key()),
             Errors::OnlyAuthority
         );
         self.mock_oracle.price = price;
@@ -47,14 +48,14 @@ impl<'info> MockOracle<'info> {
         Ok((price, exponent))
     }
 
-    pub fn update_oracle_admin(&mut self, new_admin: Pubkey) -> Result<()>{
+    pub fn update_oracle_admin(&mut self, new_admin: Pubkey) -> Result<()> {
         require!(
-            self.owner_oracle.key() == self.lending_pool.owner || self.admin_registry.is_admin(self.owner_oracle.key()),
+            self.owner_oracle.key() == self.lending_pool.owner
+                || self.admin_registry.is_admin(self.owner_oracle.key()),
             Errors::OnlyAuthority
         );
         require!(self.admin_registry.is_admin(new_admin), Errors::OnlyAdmin);
         self.mock_oracle.admin = new_admin;
         Ok(())
     }
-
 }

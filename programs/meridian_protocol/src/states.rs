@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::example_mocks};
 
 use crate::errors::Errors;
 
@@ -151,5 +151,36 @@ impl MockOracleState {
         require!(current_time - last_updated <= max_age, Errors::StaleOracle);
 
         Ok((price, exponent))
+    }
+
+    pub fn get_price_per_gram(&mut self, max_age: i64) -> Result<u128> {
+        let current_time = Clock::get()?.unix_timestamp;
+
+        require!(
+            current_time - self.last_updated <= max_age,
+            Errors::StaleOracle
+        );
+
+        let price = self.price as i128;
+        let exponent = self.exponent;
+
+        let price_per_ounce_usd: i128 = if exponent < 0 {
+            price.checked_div(10_i128.pow((-exponent) as u32)).unwrap()
+        } else {
+            price.checked_mul(10_i128.pow(exponent as u32)).unwrap()
+        };
+
+        require!(price_per_ounce_usd > 0, Errors::InvalidPrice);
+
+        //e Converting ounces to grams by scaling with 10**6
+        const GRAMS_PER_TROY_OUNCE_SCALED: u128 = 31_103_476;
+
+        let price_per_gram_scaled: u128 = (price_per_ounce_usd as u128)
+            .checked_mul(1_000_000)
+            .unwrap()
+            .checked_div(GRAMS_PER_TROY_OUNCE_SCALED)
+            .unwrap();
+
+        Ok(price_per_gram_scaled)
     }
 }
