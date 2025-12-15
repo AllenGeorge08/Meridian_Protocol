@@ -76,7 +76,7 @@ pub struct LoanState {
     pub collateral_value_usd: u64,
     pub loan_status: u8, //STATUS = 0(Active), 1(REPAID), 2 (LIQUIDATABLE), 3(LIQUIDATED)
     pub bump_borrower_state: u8,
-    pub weight_in_grams: u64,
+    pub weight_in_grams: i64,
     pub purity_in_bps: u16,
 
     pub origination_fee: u64,

@@ -1,4 +1,4 @@
-use crate::constants::{GOLD_USD_PRICE_FEE, MAX_AGE};
+use crate::constants::{GOLD_USD_PRICE_FEED, MAX_AGE};
 use crate::errors::Errors;
 use crate::states::*;
 use anchor_lang::prelude::*;
@@ -53,6 +53,7 @@ pub struct Borrow<'info> {
     ///CHECK: Safe,Will be created on the client side
     #[account(mut)]
     pub rwa_asset: UncheckedAccount<'info>,
+    ///CHECK: 
     #[account(
         mut,
         seeds = [b"meridian_verification_vault", lending_pool.key().as_ref()],
@@ -96,6 +97,8 @@ impl<'info> Borrow<'info> {
     }
 
     pub fn borrow(&mut self) -> Result<()> {
+        require!(self.lending_pool.is_locked == false, Errors::PoolLocked);
+
         self.borrow_assets()?;
         Ok(())
     }
@@ -108,74 +111,71 @@ impl<'info> Borrow<'info> {
 
         let key = self.lending_pool.key();
         let bump = &[self.lending_pool.bump_verification_vault];
-        let signer_seeds: &[&[u8]] = 
-        &[
-            b"meridian_verification_vault",
-            key.as_ref(),
-            bump            
-        ];
+        let signer_seeds: &[&[u8]] = &[b"meridian_verification_vault", key.as_ref(), bump];
 
         let seeds = &[signer_seeds];
 
         TransferV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
-        .payer(&self.borrower.to_account_info())
-        .asset(&self.rwa_asset.to_account_info())
-        .new_owner(&self.lending_pool.to_account_info())
-        .authority(Some(&self.protocol_verification_vault.to_account_info()))
-        .invoke_signed(seeds)?;
+            .payer(&self.borrower.to_account_info())
+            .asset(&self.rwa_asset.to_account_info())
+            .new_owner(&self.lending_pool.to_account_info())
+            .authority(Some(&self.protocol_verification_vault.to_account_info()))
+            .invoke_signed(seeds)?;
 
-        msg!("Collateral Deposited: {}",self.rwa_asset.key());
+        msg!("Collateral Deposited: {}", self.rwa_asset.key());
 
         Ok(())
     }
 
     fn borrow_assets(&mut self) -> Result<()> {
-        let borrowable_value = self.calculate_borrowable_value_of_the_asset()?;
-        let origination_fee= self.calculate_origination_fee(borrowable_value)?;
+        let borrowable_value = self.calculate_borrowable_value_of_the_asset_Pyth()?;
+        let origination_fee = self.calculate_origination_fee(borrowable_value)?;
 
-        let accounts = TransferChecked{
+        let accounts = TransferChecked {
             from: self.lending_pool_usdc_ata.to_account_info(),
             to: self.borrower_usdc_ata.to_account_info(),
             authority: self.borrower.to_account_info(),
-            mint: self.mint_usdc.to_account_info()
+            mint: self.mint_usdc.to_account_info(),
         };
 
         let program = self.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(program,accounts);
+        let cpi_ctx = CpiContext::new(program, accounts);
         transfer_checked(cpi_ctx, borrowable_value, self.mint_usdc.decimals)?;
         self.borrower_state.principal_borrowed = borrowable_value;
         self.borrower_state.origination_fee += origination_fee;
+        self.lending_pool.total_borrowed += borrowable_value;
+
         Ok(())
     }
 
     pub fn calculate_origination_fee(&mut self, total_value_borrowed: u64) -> Result<(u64)> {
-        return Ok(total_value_borrowed*self.lending_pool.origination_fee_bps as u64/10_000);
-        
+        return Ok(total_value_borrowed * self.lending_pool.origination_fee_bps as u64 / 10_000);
     }
 
-    pub fn calculate_borrowable_value_of_the_asset(&mut self) -> Result<u64> {
+    pub fn calculate_borrowable_value_of_the_asset_Pyth(&mut self) -> Result<u64> {
         let price_update_account = &mut self.price_update;
 
-        let gold_usdc_feed_id = get_feed_id_from_hex(GOLD_USD_PRICE_FEE)?;
+        let gold_usdc_feed_id = get_feed_id_from_hex(GOLD_USD_PRICE_FEED)?;
 
         let clock = &Clock::get()?;
-        let gold_price_latest = price_update_account
+        let gold_price = price_update_account
             .get_price_no_older_than(clock, MAX_AGE, &gold_usdc_feed_id)?
-            .price;
+            ;
 
+        let gold_price_per_troy_ounce_amount = gold_price.price;
+
+        //Pyth returns value in troy unit = 31.103476 grams
+        const GRAMS_PER_TROY_OUNCE_SCALED: i64= 31_103_476; // Troy ounce -> grams i.e 31.103476 * 10**6 to avoid rounding errors
+
+        let gold_price_per_gram_scaled = gold_price_per_troy_ounce_amount.checked_mul(1_000_000).unwrap().checked_div(GRAMS_PER_TROY_OUNCE_SCALED).unwrap();
+
+        //e Price of the collateral = weight in grams * Purity of the gold(in bps) * Gold price latest(In grams)
         let weight_in_grams = self.borrower_state.weight_in_grams;
         let purity_in_bps = self.borrower_state.purity_in_bps;
         let ltv = self.lending_pool.loan_to_value_bps;
-        let price_of_the_collateral = weight_in_grams
-            .checked_mul(purity_in_bps as u64)
-            .unwrap()
-            .checked_mul(ltv as u64)
-            .unwrap()
-            .checked_mul(gold_price_latest as u64)
-            .unwrap()
-            .checked_div(10000)
-            .unwrap()
-            .checked_div(10000).unwrap();
+        
+        let price_of_the_collateral = (weight_in_grams as u64).checked_mul(gold_price_per_gram_scaled as u64).unwrap().checked_mul(purity_in_bps as u64).unwrap().checked_mul(ltv as u64).unwrap().checked_div(1_00_000).unwrap().checked_div(10_000).unwrap().checked_div(1_000_000).unwrap();
+
 
         Ok(price_of_the_collateral)
     }
