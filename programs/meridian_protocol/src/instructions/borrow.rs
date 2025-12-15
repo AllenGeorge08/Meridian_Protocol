@@ -75,7 +75,7 @@ pub struct Borrow<'info> {
 }
 
 impl<'info> Borrow<'info> {
-    pub fn deposit_for_verification(&mut self) -> Result<()> {
+    pub fn deposit_for_verification(&mut self, bumps: &BorrowBumps) -> Result<()> {
         require!(
             self.borrower_state.is_sent_for_verification == false,
             Errors::AssetAlreadySentForVerification
@@ -89,7 +89,7 @@ impl<'info> Borrow<'info> {
             .invoke()?;
 
         self.borrower_state.verification_id += 1;
-        self.borrower_state.is_sent_for_verification = true;
+        self.borrower_state.bump_borrower_state = bumps.borrower_state;
 
         msg!(
             "Asset transferred for verification: {}",

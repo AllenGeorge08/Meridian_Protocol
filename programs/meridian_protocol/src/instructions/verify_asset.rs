@@ -38,7 +38,7 @@ pub struct Verify_asset<'info> {
     #[account(
         mut,
         seeds = [b"meridian_borrower_state", borrower_state.borrower.key().as_ref()],
-        bump
+        bump = borrower_state.bump_borrower_state
     )]
     pub borrower_state: Box<Account<'info, LoanState>>,
     #[account(
@@ -66,7 +66,13 @@ pub struct Verify_asset<'info> {
 }
 
 impl<'info> Verify_asset<'info> {
-    pub fn verify_asset(&mut self, verification_id: u32, is_verified: bool) -> Result<()> {
+    pub fn verify_asset(
+        &mut self,
+        verification_id: u32,
+        is_verified: bool,
+        purity_in_bps: u16,
+        weight_in_grams: i64,
+    ) -> Result<()> {
         require!(
             self.admin_registry.is_admin(self.signer.key()),
             Errors::OnlyAdmin
@@ -83,6 +89,8 @@ impl<'info> Verify_asset<'info> {
             self.borrower_state.is_rejected == true;
         }
 
+        self.borrower_state.weight_in_grams = weight_in_grams;
+        self.borrower_state.purity_in_bps = purity_in_bps;
         Ok(())
     }
 }
