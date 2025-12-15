@@ -34,35 +34,27 @@ pub struct MockOracle<'info> {
 }
 
 impl<'info> MockOracle<'info> {
-    pub const MAX_AGE: i64 = 100; //100 seconds is the maximum age for the oracle
-
-    pub fn log_state(&mut self) {
-        println!("Gold price (In troy ounce) : {} ", self.mock_oracle.price);
-        println!("Gold exponent  : {} ", self.mock_oracle.exponent);
-        println!("Last Updated at : {} ", self.mock_oracle.last_updated);
-    }
-
-    pub fn update_price_mock_oracle(&mut self, price: i64, exponent: i32) -> Result<()> {
-        require!(self.is_admin(self.owner_oracle.key()), Errors::OnlyAdmin);
-        let oracle = &mut self.mock_oracle;
-        oracle.price = price;
-        oracle.exponent = exponent;
-        oracle.last_updated = Clock::get()?.unix_timestamp;
-        Ok(())
-    }
-
-    pub fn get_price_no_older_than(&mut self, max_age: i64) -> Result<(i64, i32)> {
-        let current_time = Clock::get()?.unix_timestamp;
-        let last_updated = self.mock_oracle.last_updated;
-        let price = self.mock_oracle.price;
-        let exponent = self.mock_oracle.exponent;
-
-        require!(current_time - last_updated <= max_age, Errors::StaleOracle);
+    pub fn update_oracle_values(&mut self, price: i64, exponent: i32) -> Result<(i64, i32)> {
+        require!(
+            self.owner_oracle.key() == self.lending_pool.owner || self.admin_registry.is_admin(self.owner_oracle.key()),
+            Errors::OnlyAuthority
+        );
+        self.mock_oracle.price = price;
+        self.mock_oracle.exponent = exponent;
+        self.mock_oracle.last_updated = Clock::get()?.unix_timestamp;
+        msg!("Updated Mock Oracle Values");
 
         Ok((price, exponent))
     }
 
-    pub fn is_admin(&mut self, admin: Pubkey) -> bool {
-        return self.admin_registry.is_admin(admin);
+    pub fn update_oracle_admin(&mut self, new_admin: Pubkey) -> Result<()>{
+        require!(
+            self.owner_oracle.key() == self.lending_pool.owner || self.admin_registry.is_admin(self.owner_oracle.key()),
+            Errors::OnlyAuthority
+        );
+        require!(self.admin_registry.is_admin(new_admin), Errors::OnlyAdmin);
+        self.mock_oracle.admin = new_admin;
+        Ok(())
     }
+
 }

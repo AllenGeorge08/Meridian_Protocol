@@ -126,8 +126,30 @@ impl AdminRegistry {
 #[account]
 #[derive(InitSpace)]
 pub struct MockOracleState {
+    pub admin: Pubkey,
     pub price: i64,
     pub exponent: i32,
     pub last_updated: i64,
     pub bump: u8,
+}
+
+impl MockOracleState {
+    pub const MAX_AGE: i64 = 100; //100 seconds is the maximum age for the oracle
+
+    pub fn log_state(&mut self) {
+        println!("Gold price (In troy ounce) : {} ", self.price);
+        println!("Gold exponent  : {} ", self.exponent);
+        println!("Last Updated at : {} ", self.last_updated);
+    }
+
+    pub fn get_price_no_older_than(&mut self, max_age: i64) -> Result<(i64, i32)> {
+        let current_time = Clock::get()?.unix_timestamp;
+        let last_updated = self.last_updated;
+        let price = self.price;
+        let exponent = self.exponent;
+
+        require!(current_time - last_updated <= max_age, Errors::StaleOracle);
+
+        Ok((price, exponent))
+    }
 }

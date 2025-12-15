@@ -1,6 +1,6 @@
 use crate::constants::{GOLD_USD_PRICE_FEED, MAX_AGE};
 use crate::errors::Errors;
-use crate::states::*;
+use crate::states::{LendingPool, LoanState, MockOracleState};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{
@@ -60,6 +60,12 @@ pub struct Borrow<'info> {
         bump = lending_pool.bump_verification_vault
     )]
     pub protocol_verification_vault: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [b"meridian_mock_oracle",lending_pool.key().as_ref()],
+        bump = mock_oracle.bump
+    )]
+    pub mock_oracle: Box<Account<'info, MockOracleState>>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub price_update: Account<'info, PriceUpdateV2>,
     pub token_program: Interface<'info, TokenInterface>,
@@ -150,6 +156,16 @@ impl<'info> Borrow<'info> {
 
     pub fn calculate_origination_fee(&mut self, total_value_borrowed: u64) -> Result<(u64)> {
         return Ok(total_value_borrowed * self.lending_pool.origination_fee_bps as u64 / 10_000);
+    }
+
+    pub fn calculate_borrowable_value_of_the_asset_mock_oracle(&mut self) -> Result<()> {
+        let mock_oracle = &mut self.mock_oracle;
+
+        let max_age = 100;
+        let gold_price_per_troy_ounce_amount = mock_oracle;
+        const GRAMS_PER_TROY_OUNCE_SCALED: i64 = 31_103_476; // Troy ounce -> grams i.e 31.103476 * 10**6 to avoid rounding errors
+
+        Ok(())
     }
 
     pub fn calculate_borrowable_value_of_the_asset_Pyth(&mut self) -> Result<u64> {
