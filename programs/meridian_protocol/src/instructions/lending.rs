@@ -136,7 +136,7 @@ impl<'info> Lending<'info> {
             return deposit_amount;
         };
 
-        let shares_to_mint = deposit_amount * lp_supply / total_liquidity_in_pool;
+        let shares_to_mint = deposit_amount.checked_mul(lp_supply).unwrap().checked_div(total_liquidity_in_pool).unwrap();
         return shares_to_mint;
     }
 }
