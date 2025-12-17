@@ -4,7 +4,7 @@ use crate::states::{LendingPool, LoanState, MockOracleState};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_interface::{
-    mint_to, transfer_checked, Mint, MintTo, TokenAccount, TokenInterface, TransferChecked,
+    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 use mpl_core::instructions::TransferV1CpiBuilder;
 use pyth_solana_receiver_sdk::price_update::{get_feed_id_from_hex, PriceUpdateV2};
@@ -117,6 +117,8 @@ impl<'info> Borrow<'info> {
         require!(self.lending_pool.is_locked == false, Errors::PoolLocked);
         require!(self.is_asset_verified(), Errors::AssetNotVerified);
 
+        self.borrower_state.last_interest_accrued = Clock::get()?.unix_timestamp;
+
         self.borrow_assets(use_pyth)?;
         Ok(())
     }
@@ -145,7 +147,8 @@ impl<'info> Borrow<'info> {
         Ok(())
     }
 
-    fn collect_collateral(&mut self) -> Result<()> {
+    //e Borrower can collect their collateral back if the collateral is rejected by the admin
+    pub fn collect_collateral(&mut self) -> Result<()> {
         require!(
             self.borrower_state.is_verified == false && self.borrower_state.is_rejected,
             Errors::CannotCollectCollateral
@@ -172,7 +175,7 @@ impl<'info> Borrow<'info> {
     fn borrow_assets(&mut self, use_pyth: bool) -> Result<()> {
         let borrowable_value: u64;
         if use_pyth {
-            borrowable_value = self.calculate_borrowable_value_of_the_asset_Pyth()?;
+            borrowable_value = self.calculate_borrowable_value_of_the_asset_pyth()?;
         } else {
             borrowable_value = self.calculate_borrowable_value_of_the_asset_mock_oracle()?;
         }
@@ -192,15 +195,52 @@ impl<'info> Borrow<'info> {
         self.borrower_state.principal_borrowed = borrowable_value;
         self.borrower_state.origination_fee += origination_fee;
         self.lending_pool.total_borrowed += borrowable_value;
+        self.borrower_state.borrow_apr_bps = self.calculate_borrow_rate_tier()?;
 
         Ok(())
     }
 
-    pub fn calculate_origination_fee(&mut self, total_value_borrowed: u64) -> Result<(u64)> {
+    pub fn calculate_borrow_rate_tier(&mut self) -> Result<u16> {
+        let current_utilization_rate = self.get_current_utilization_rate()?;
+        let current_utilization_rate_bps =
+            current_utilization_rate.checked_div(10_000).unwrap() as u16;
+        let u1_bps = self.lending_pool.utilization_rate_tier_1_bps; //0 to 2500
+        let u2_bps = self.lending_pool.utilization_rate_tier_2_bps; //2500 to //5000
+        let u3_bps = self.lending_pool.utilization_rate_tier_3_bps; //5000 to 7500
+        let u4_bps = self.lending_pool.utilization_rate_tier_4_bps; //7500 to //9000
+        let u5_bps = self.lending_pool.utilization_rate_tier_5_bps; //9000+
+
+        let current_borrow_apr_rate_bps: u16;
+
+        if current_utilization_rate_bps >= u1_bps && current_utilization_rate_bps < u2_bps {
+            current_borrow_apr_rate_bps = self.lending_pool.apr_tier_1_bps;
+        } else if current_utilization_rate_bps >= u2_bps && current_utilization_rate_bps < u3_bps {
+            current_borrow_apr_rate_bps = self.lending_pool.apr_tier_2_bps;
+        } else if current_utilization_rate_bps >= u3_bps && current_utilization_rate_bps < u4_bps {
+            current_borrow_apr_rate_bps = self.lending_pool.apr_tier_3_bps;
+        } else if current_utilization_rate_bps >= u4_bps && current_utilization_rate_bps < u5_bps {
+            current_borrow_apr_rate_bps = self.lending_pool.apr_tier_4_bps;
+        } else {
+            current_borrow_apr_rate_bps = self.lending_pool.apr_tier_5_bps
+        }
+
+        Ok(current_borrow_apr_rate_bps)
+    }
+
+    pub fn get_current_utilization_rate(&mut self) -> Result<u64> {
+        let total_borrowed = self.lending_pool.total_borrowed;
+        let total_deposited = self.lending_pool.total_deposited_usdc;
+
+        let utilization_rate = total_borrowed.checked_mul(total_deposited).unwrap();
+
+        Ok(utilization_rate)
+    }
+
+    pub fn calculate_origination_fee(&mut self, total_value_borrowed: u64) -> Result<u64> {
         return Ok(total_value_borrowed * self.lending_pool.origination_fee_bps as u64 / 10_000);
     }
 
-    pub fn calculate_borrowable_value_of_the_asset_mock_oracle(&mut self) -> Result<(u64)> {
+    pub fn calculate_borrowable_value_of_the_asset_mock_oracle(&mut self) -> Result<u64> {
         let mock_oracle = &mut self.mock_oracle;
 
         let max_age = 100;
@@ -227,7 +267,7 @@ impl<'info> Borrow<'info> {
         Ok(price_of_the_collateral)
     }
 
-    pub fn calculate_borrowable_value_of_the_asset_Pyth(&mut self) -> Result<u64> {
+    pub fn calculate_borrowable_value_of_the_asset_pyth(&mut self) -> Result<u64> {
         let price_update_account = &mut self.price_update;
 
         let gold_usdc_feed_id = get_feed_id_from_hex(GOLD_USD_PRICE_FEED)?;

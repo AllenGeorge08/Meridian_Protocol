@@ -74,13 +74,14 @@ pub struct LoanState {
     pub interest_accrued: u64,
     pub outstanding_debt: u64,
     pub borrowed_at: i64,
-    pub last_interest_accrued: u64,
+    pub last_interest_accrued: i64,
     pub collateral_value_usd: u64,
     pub loan_status: u8, //STATUS = 0(Active), 1(REPAID), 2 (LIQUIDATABLE), 3(LIQUIDATED)
     pub bump_borrower_state: u8,
     pub weight_in_grams: i64,
     pub purity_in_bps: u16,
     pub origination_fee: u64,
+    pub borrow_apr_bps: u16,
 }
 
 #[account]

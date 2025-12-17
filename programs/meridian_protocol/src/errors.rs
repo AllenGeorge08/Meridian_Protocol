@@ -40,4 +40,8 @@ pub enum Errors {
     IncorrectVerificationId,
     #[msg("Cannot collect collateral, asset deposited")]
     CannotCollectCollateral,
+    #[msg("Amount Not Enough to Repay")]
+    RepayAmountNotEnough,
+    #[msg("Loan Cannot Be Repaid")]
+    CannotRepayLoan,
 }
