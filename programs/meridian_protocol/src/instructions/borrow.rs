@@ -120,7 +120,9 @@ impl<'info> Borrow<'info> {
         self.borrower_state.last_interest_accrued = Clock::get()?.unix_timestamp;
 
         self.borrow_assets(use_pyth)?;
+        self.borrower_state.loan_status  = 0;
         Ok(())
+
     }
 
     pub fn deposit_collateral(&mut self) -> Result<()> {
@@ -185,7 +187,7 @@ impl<'info> Borrow<'info> {
         let accounts = TransferChecked {
             from: self.lending_pool_usdc_ata.to_account_info(),
             to: self.borrower_usdc_ata.to_account_info(),
-            authority: self.borrower.to_account_info(),
+            authority: self.lending_pool.to_account_info(),
             mint: self.mint_usdc.to_account_info(),
         };
 
@@ -196,14 +198,16 @@ impl<'info> Borrow<'info> {
         self.borrower_state.origination_fee += origination_fee;
         self.lending_pool.total_borrowed += borrowable_value;
         self.borrower_state.borrow_apr_bps = self.calculate_borrow_rate_tier()?;
-
+        self.borrower_state.collateral_value_usd = borrowable_value;
         Ok(())
     }
 
     pub fn calculate_borrow_rate_tier(&mut self) -> Result<u16> {
-        let current_utilization_rate = self.get_current_utilization_rate()?;
-        let current_utilization_rate_bps =
-            current_utilization_rate.checked_div(10_000).unwrap() as u16;
+        //e Retrieving current utlization rate...
+        let current_utilization_rate = self.get_current_utilization_rate()?; 
+        let current_utilization_rate_bps = current_utilization_rate as u16;
+        // let current_utilization_rate_bps =
+        //     current_utilization_rate.checked_div(10_000).unwrap() as u16;
         let u1_bps = self.lending_pool.utilization_rate_tier_1_bps; //0 to 2500
         let u2_bps = self.lending_pool.utilization_rate_tier_2_bps; //2500 to //5000
         let u3_bps = self.lending_pool.utilization_rate_tier_3_bps; //5000 to 7500
@@ -227,11 +231,16 @@ impl<'info> Borrow<'info> {
         Ok(current_borrow_apr_rate_bps)
     }
 
+    //e Total_Borrowed * 10_000/Total_Deposited..
     pub fn get_current_utilization_rate(&mut self) -> Result<u64> {
         let total_borrowed = self.lending_pool.total_borrowed;
         let total_deposited = self.lending_pool.total_deposited_usdc;
 
-        let utilization_rate = total_borrowed.checked_mul(total_deposited).unwrap();
+        if total_deposited == 0{
+            return Ok(0)
+        }
+
+        let utilization_rate = total_borrowed.checked_mul(10_000).unwrap().checked_div(total_deposited).unwrap();
 
         Ok(utilization_rate)
     }
