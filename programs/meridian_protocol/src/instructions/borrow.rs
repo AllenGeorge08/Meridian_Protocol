@@ -212,7 +212,7 @@ impl<'info> Borrow<'info> {
         self.lending_pool.total_borrowed += borrowable_value;
         self.borrower_state.borrow_apr_bps = self.calculate_borrow_rate_tier()?;
         self.borrower_state.collateral_value_usd =
-            self.calculate_value_of_the_asset_mock_oracle()?;   
+            self.calculate_value_of_the_asset_mock_oracle()?;
         Ok(())
     }
 

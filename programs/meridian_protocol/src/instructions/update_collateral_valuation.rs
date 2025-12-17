@@ -3,13 +3,11 @@ use anchor_lang::prelude::*;
 use crate::AdminRegistry;
 // use crate::constants::{GOLD_USD_PRICE_FEED, MAX_AGE};
 use crate::errors::Errors;
-use crate::states::{LendingPool, LoanState, MockOracleState};
-use anchor_lang::prelude::*;
+use crate::states::{LendingPool, LoanState};
+
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token_interface::{
-    transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
-};
-use mpl_core::instructions::TransferV1CpiBuilder;
+use anchor_spl::token_interface::{Mint, TokenInterface};
+
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 // ▄▄▄      ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄▄▄▄   ▄▄▄▄▄   ▄▄▄▄   ▄▄▄    ▄▄▄
@@ -55,9 +53,16 @@ pub struct UpdateCollateralValuation<'info> {
 
 impl<'info> UpdateCollateralValuation<'info> {
     pub fn update_collateral_valuation(&mut self, amount: u64) -> Result<()> {
-        require!(self.admin_registry.is_admin(self.signer.key()), Errors::OnlyAdmin);
+        require!(
+            self.admin_registry.is_admin(self.signer.key()),
+            Errors::OnlyAdmin
+        );
         self.borrower_state.collateral_value_usd = amount;
-        msg!("Admin Updated Collateral Valuation of : {} user's collateral to: {}", self.borrower.key(),amount);
+        msg!(
+            "Admin Updated Collateral Valuation of : {} user's collateral to: {}",
+            self.borrower.key(),
+            amount
+        );
         Ok(())
     }
 }
