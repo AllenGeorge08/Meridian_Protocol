@@ -188,22 +188,54 @@ impl<'info> Borrow<'info> {
             Errors::InsufficientLiquidityToBorrow
         );
 
+        let owner = self.lending_pool.owner.key();
+
+        //e Signer seeds
+        let signer_seeds: &[&[&[u8]]] = &[&[
+            b"meridian_pool",
+            owner.as_ref(),
+            &[self.lending_pool.bump_lending_pool],
+        ]];
+
         let accounts = TransferChecked {
+            mint: self.mint_usdc.to_account_info(),
             from: self.lending_pool_usdc_ata.to_account_info(),
             to: self.borrower_usdc_ata.to_account_info(),
             authority: self.lending_pool.to_account_info(),
-            mint: self.mint_usdc.to_account_info(),
         };
 
         let program = self.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(program, accounts);
+        let cpi_ctx = CpiContext::new_with_signer(program, accounts, signer_seeds);
         transfer_checked(cpi_ctx, borrowable_value, self.mint_usdc.decimals)?;
         self.borrower_state.principal_borrowed = borrowable_value;
         self.borrower_state.origination_fee += origination_fee;
         self.lending_pool.total_borrowed += borrowable_value;
         self.borrower_state.borrow_apr_bps = self.calculate_borrow_rate_tier()?;
-        self.borrower_state.collateral_value_usd = borrowable_value;
+        self.borrower_state.collateral_value_usd =
+            self.calculate_value_of_the_asset_mock_oracle()?;   
         Ok(())
+    }
+
+    pub fn calculate_value_of_the_asset_mock_oracle(&mut self) -> Result<u64> {
+        let mock_oracle = &mut self.mock_oracle;
+
+        let max_age = 100;
+        let gold_price_per_gram_scaled = mock_oracle.get_price_per_gram(max_age)?;
+        //e Price of the collateral = weight in grams * Purity of the gold(in bps) * Gold price latest(In grams)
+        let weight_in_grams = self.borrower_state.weight_in_grams;
+        let purity_in_bps = self.borrower_state.purity_in_bps;
+
+        let price_of_the_collateral = (weight_in_grams as u64)
+            .checked_mul(gold_price_per_gram_scaled as u64)
+            .unwrap()
+            .checked_mul(purity_in_bps as u64)
+            .unwrap()
+            .checked_div(10_000) //e to normalize purity bps
+            .unwrap()
+            .checked_div(1_000_000)
+            .unwrap();
+
+        Ok(price_of_the_collateral)
     }
 
     pub fn calculate_borrow_rate_tier(&mut self) -> Result<u16> {

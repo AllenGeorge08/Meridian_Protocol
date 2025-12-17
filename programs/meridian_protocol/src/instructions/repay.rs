@@ -130,7 +130,6 @@ impl<'info> Repay<'info> {
 
     pub fn total_debt_to_repay(&mut self) -> Result<u64> {
         //e collateral + interest accrued + liquidation_penalty_if applied
-
         let total_interest_accrued_by_user = self.calculate_interest_accrued()?;
         let principal_borrowed = self.borrower_state.principal_borrowed;
         let origination_fee = self.borrower_state.origination_fee;
