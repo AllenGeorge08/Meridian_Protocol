@@ -44,4 +44,6 @@ pub enum Errors {
     RepayAmountNotEnough,
     #[msg("Loan Cannot Be Repaid")]
     CannotRepayLoan,
+    #[msg("Not enough value in pool to borrow")]
+    InsufficientLiquidityToBorrow,
 }

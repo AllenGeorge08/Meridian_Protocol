@@ -1,7 +1,7 @@
 pub mod add_admin;
 pub mod lending;
 
-pub mod repayment;
+pub mod repay;
 pub mod verify_asset;
 pub use lending::*;
 
@@ -9,7 +9,7 @@ pub mod withdraw;
 pub use withdraw::*;
 
 pub use add_admin::*;
-pub use repayment::*;
+pub use repay::*;
 
 pub use verify_asset::*;
 

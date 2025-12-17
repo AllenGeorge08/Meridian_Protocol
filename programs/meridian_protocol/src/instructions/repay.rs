@@ -130,15 +130,13 @@ impl<'info> Repay<'info> {
 
     pub fn total_debt_to_repay(&mut self) -> Result<u64> {
         //e collateral + interest accrued + liquidation_penalty_if applied
-        
+
         let total_interest_accrued_by_user = self.calculate_interest_accrued()?;
         let principal_borrowed = self.borrower_state.principal_borrowed;
         let origination_fee = self.borrower_state.origination_fee;
-        
-        
+
         let base_debt = total_interest_accrued_by_user + principal_borrowed + origination_fee;
 
-        
         let health_factor = self.calculate_health_factor(base_debt)?;
 
         let total_debt_to_repay: u64;
@@ -149,7 +147,6 @@ impl<'info> Repay<'info> {
         } else {
             total_debt_to_repay = base_debt;
         }
-
 
         self.borrower_state.interest_accrued += total_interest_accrued_by_user;
 
@@ -193,15 +190,15 @@ impl<'info> Repay<'info> {
         Ok(liquidation_penalty)
     }
 
-    pub fn calculate_health_factor(&mut self,total_debt: u64) -> Result<u64> {
+    pub fn calculate_health_factor(&mut self, total_debt: u64) -> Result<u64> {
         //Below Implementation is unsafe, latter is the better one...
         // let health_factor = (self.lending_pool.liquidation_threshold_bps as u64
         //     * self.borrower_state.collateral_value_usd)
         //     / (total_debt.checked_mul(10_000).unwrap());
 
-        if total_debt == 0{
+        if total_debt == 0 {
             msg!("No total debt, Health factor is infinite");
-            return Ok(u64::MAX)
+            return Ok(u64::MAX);
         }
 
         let ltv = self.lending_pool.liquidation_threshold_bps as u64;

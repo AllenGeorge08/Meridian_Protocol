@@ -120,9 +120,8 @@ impl<'info> Borrow<'info> {
         self.borrower_state.last_interest_accrued = Clock::get()?.unix_timestamp;
 
         self.borrow_assets(use_pyth)?;
-        self.borrower_state.loan_status  = 0;
+        self.borrower_state.loan_status = 0;
         Ok(())
-
     }
 
     pub fn deposit_collateral(&mut self) -> Result<()> {
@@ -184,6 +183,11 @@ impl<'info> Borrow<'info> {
 
         let origination_fee = self.calculate_origination_fee(borrowable_value)?;
 
+        require!(
+            self.lending_pool.total_deposited_usdc >= borrowable_value,
+            Errors::InsufficientLiquidityToBorrow
+        );
+
         let accounts = TransferChecked {
             from: self.lending_pool_usdc_ata.to_account_info(),
             to: self.borrower_usdc_ata.to_account_info(),
@@ -204,7 +208,7 @@ impl<'info> Borrow<'info> {
 
     pub fn calculate_borrow_rate_tier(&mut self) -> Result<u16> {
         //e Retrieving current utlization rate...
-        let current_utilization_rate = self.get_current_utilization_rate()?; 
+        let current_utilization_rate = self.get_current_utilization_rate()?;
         let current_utilization_rate_bps = current_utilization_rate as u16;
         // let current_utilization_rate_bps =
         //     current_utilization_rate.checked_div(10_000).unwrap() as u16;
@@ -236,11 +240,15 @@ impl<'info> Borrow<'info> {
         let total_borrowed = self.lending_pool.total_borrowed;
         let total_deposited = self.lending_pool.total_deposited_usdc;
 
-        if total_deposited == 0{
-            return Ok(0)
+        if total_deposited == 0 {
+            return Ok(0);
         }
 
-        let utilization_rate = total_borrowed.checked_mul(10_000).unwrap().checked_div(total_deposited).unwrap();
+        let utilization_rate = total_borrowed
+            .checked_mul(10_000)
+            .unwrap()
+            .checked_div(total_deposited)
+            .unwrap();
 
         Ok(utilization_rate)
     }
@@ -266,9 +274,9 @@ impl<'info> Borrow<'info> {
             .unwrap()
             .checked_mul(ltv as u64)
             .unwrap()
-            .checked_div(1_00_000)
+            .checked_div(1_00_000) //e to normalized ltv bps
             .unwrap()
-            .checked_div(10_000)
+            .checked_div(10_000) //e to normalize purity bps
             .unwrap()
             .checked_div(1_000_000)
             .unwrap();
