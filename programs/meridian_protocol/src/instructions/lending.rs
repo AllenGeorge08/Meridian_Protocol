@@ -108,9 +108,9 @@ impl<'info> Lending<'info> {
 
         let cpi_program = self.token_program.to_account_info();
 
-        let lending_pool_owner = self.lending_pool.owner;
+        let lending_pool_owner = self.lending_pool.owner.key();
         let seeds = &[
-            &b"meridian_pool"[..],
+            b"meridian_pool",
             lending_pool_owner.as_ref(),
             &[self.lending_pool.bump_lending_pool],
         ];
