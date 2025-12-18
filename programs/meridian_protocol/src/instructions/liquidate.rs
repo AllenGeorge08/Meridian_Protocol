@@ -72,6 +72,10 @@ pub struct Liquidate<'info> {
 
 impl<'info> Liquidate<'info> {
     pub fn liquidate(&mut self) -> Result<()> {
+        require!(
+            self.borrower_state.loan_status == 0,
+            Errors::CannotLiquidate
+        );
         let liquidation_penalty = self.calculate_liquidation_penalty()?;
         let (_total_debt_to_repay, health_factor) =
             self.total_debt_to_repay(liquidation_penalty)?; //e Didn't calculate differently to avoid circular dependencies
@@ -80,6 +84,8 @@ impl<'info> Liquidate<'info> {
 
         self.transfer_asset_to_seize_vault()?;
         self.transfer_penalty_shares_to_the_liquidator(liquidation_penalty)?;
+
+        self.borrower_state.loan_status = 2;
 
         Ok(())
     }
@@ -109,6 +115,8 @@ impl<'info> Liquidate<'info> {
         let cpi_ctx =
             CpiContext::new_with_signer(self.token_program.to_account_info(), accounts, seeds);
         transfer_checked(cpi_ctx, shares_to_transfer, self.mint_usdc.decimals)?;
+
+        self.lending_pool.total_deposited_usdc -= shares_to_transfer;
         Ok(())
     }
 

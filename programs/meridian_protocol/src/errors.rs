@@ -46,4 +46,6 @@ pub enum Errors {
     CannotRepayLoan,
     #[msg("Not enough value in pool to borrow")]
     InsufficientLiquidityToBorrow,
+    #[msg("Cannot Liquidate the asset when the value of collateral is healthy i.e above 1 || Cannot Liquidate When the Loan Is Already Repaid")]
+    CannotLiquidate,
 }
