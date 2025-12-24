@@ -148,7 +148,7 @@ impl<'info> Repay<'info> {
         }
 
         self.borrower_state.interest_accrued += total_interest_accrued_by_user;
-
+        msg!("Total debt to repay is: {}", total_debt_to_repay);
         Ok(total_debt_to_repay)
     }
 
@@ -213,4 +213,6 @@ impl<'info> Repay<'info> {
 
         Ok(health_factor)
     }
+
+    //withdraw the protocol fees to whatever account..
 }

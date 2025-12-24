@@ -1,17 +1,23 @@
 pub mod add_admin;
+pub use add_admin::*;
+
 pub mod lending;
+pub use lending::*;
 
 pub mod liquidate;
+pub use liquidate::*;
+
 pub mod repay;
+pub use repay::*;
+
 pub mod update_collateral_valuation;
+pub use update_collateral_valuation::*;
+
 pub mod verify_asset;
-pub use lending::*;
+pub use verify_asset::*;
 
 pub mod withdraw;
 pub use withdraw::*;
-
-pub use add_admin::*;
-pub use repay::*;
 
 pub use verify_asset::*;
 

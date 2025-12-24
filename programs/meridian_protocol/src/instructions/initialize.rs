@@ -105,7 +105,6 @@ impl<'info> Initialize<'info> {
         liquidation_penalty_bps: u16,
         liquidator_reward_bps: u16,
         bumps: &InitializeBumps,
-        oracle_admin: Pubkey,
     ) -> Result<()> {
         let lending_pool = &mut self.lending_pool;
 
