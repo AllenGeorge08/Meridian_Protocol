@@ -3,11 +3,10 @@ import { Program } from "@coral-xyz/anchor";
 import { MeridianProtocol } from "../target/types/meridian_protocol";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
-import { createMint, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 
 describe("meridian_protocol", () => {
   // Configure the client to use the local cluster.
-  // anchor.setProvider(anchor.AnchorProvider.env());
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
@@ -183,7 +182,12 @@ describe("meridian_protocol", () => {
     liquidator_usdc_ata = await createAta("USDC","Liquidator",liquidator_usdc_ata,connection,liquidator,mint_usdc,liquidator.publicKey);
     
 
-    //Mint to these above ata's now
+    //Minting USDC and LP's to the necessary ATA's
+    await mintTokens("Lending Pool ATA" ,"USDC",connection,authority,mint_usdc,authority,10,lending_pool_usdc_ata);
+    await mintTokens("Lender USDC ATA", "USDC",connection,authority,mint_usdc,authority,10,lender_usdc_ata);
+  
+    
+    await mintTokens("Lending POOL LP ATA", "LP",connection,authority,mint_lp, authority,10,lender_lp_ata);
   })  
   
 
@@ -227,6 +231,23 @@ async function createAta(mint_name: String,name: String,key: PublicKey,connectio
   return key 
 }
 
-async function mintTokens() {
-  
+//minting tokens
+async function mintTokens(recipient_name: String,mint_name: String,connection: Connection,payer: anchor.web3.Signer,mint: PublicKey,authority: Keypair,amount: number,destination: PublicKey) {
+  const mintTx = await mintTo(
+    connection,
+    payer,
+    mint,
+    destination,
+    authority.publicKey,
+    amount*10**6
+  );
+
+  console.log(`${amount}  ${mint_name} is minted to ${recipient_name}: ${mintTx}`);
+  return mintTx
+
+}
+
+//Creating and minting the rwa token..
+async function minting_rwa_token(){
+
 }
