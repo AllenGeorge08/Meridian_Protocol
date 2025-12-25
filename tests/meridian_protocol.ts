@@ -4,6 +4,10 @@ import { MeridianProtocol } from "../target/types/meridian_protocol";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
 import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
+import { createSignerFromKeypair, generateSigner, KeypairSigner, signerIdentity } from "@metaplex-foundation/umi";
+import { fromWeb3JsKeypair, fromWeb3JsPublicKey, toWeb3JsPublicKey } from "@metaplex-foundation/umi-web3js-adapters";
+import { createV1, mplCore } from "@metaplex-foundation/mpl-core";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 
 describe("meridian_protocol", () => {
   // Configure the client to use the local cluster.
@@ -66,6 +70,12 @@ describe("meridian_protocol", () => {
   let admin_registry_bump: number;
   let mock_oracle_bump: number;
   
+   //ASSET (GOLD RWA)
+   let asset: KeypairSigner;
+   let assetAddress: PublicKey;
+   let umi: any;
+
+
   before( "Setting up accounts", async() =>{
 
     authority =  await generateKeypair("Authority" ,authority);
@@ -77,13 +87,33 @@ describe("meridian_protocol", () => {
     
 
     //Airdropping 
-    await airdrop(authority.publicKey, 100,connection);
-    await airdrop(admin_one.publicKey,100,connection);
-    await airdrop(admin_two.publicKey,100,connection);
-    await airdrop(lender.publicKey,100,connection);
-    await airdrop(borrower.publicKey,100,connection);
-    await airdrop(liquidator.publicKey,100,connection);
+    await airdrop(provider,authority.publicKey, 100,connection);
+    await airdrop(provider,admin_one.publicKey,100,connection);
+    await airdrop(provider,admin_two.publicKey,100,connection);
+    await airdrop(provider,lender.publicKey,100,connection);
+    await airdrop(provider,borrower.publicKey,100,connection);
+    await airdrop(provider,liquidator.publicKey,100,connection);
 
+    umi = createUmi(connection);
+    const umiKeypair = fromWeb3JsKeypair(payer.payer);
+    const umiSigner = createSignerFromKeypair(umi,umiKeypair);
+    umi.use(signerIdentity(umiSigner));
+    umi.use(mplCore());
+
+    asset  = generateSigner(umi);
+
+    await createV1(
+      umi,
+      {
+        asset,
+        name: "GOLD RWA",
+        uri: " ",
+        owner: fromWeb3JsPublicKey(borrower.publicKey)
+      }
+    );
+
+    assetAddress = toWeb3JsPublicKey(asset.publicKey);
+        console.log("Asset created at: ", assetAddress.toBase58());
 
     //Creating pda's
 
@@ -175,8 +205,9 @@ describe("meridian_protocol", () => {
     lender_usdc_ata = await createAta("USDC","Lender",lender_usdc_ata,connection, lender,mint_usdc,lender.publicKey);
     lender_lp_ata = await createAta("LP","Lender",lender_lp_ata,connection,lender,mint_lp,lender.publicKey);
     
-    lending_pool_usdc_ata = await createAta("USDC","Lending Pool",lending_pool_usdc_ata,connection, authority,mint_usdc,authority.publicKey);
-    lending_pool_lp_ata = await createAta("LP","Lending Pool",lending_pool_lp_ata,connection,authority,mint_lp,authority.publicKey);
+    //e The owners for both LPool ATA's are Authority
+    lending_pool_usdc_ata = await createAta("USDC","Lending Pool",lending_pool_usdc_ata,connection, payer.payer,mint_usdc,authority.publicKey);
+    lending_pool_lp_ata = await createAta("LP","Lending Pool",lending_pool_lp_ata,connection,payer.payer,mint_lp,authority.publicKey);
 
     borrower_usdc_ata = await createAta("USDC","Borrower",borrower_usdc_ata,connection, borrower,mint_usdc,borrower.publicKey);
     liquidator_usdc_ata = await createAta("USDC","Liquidator",liquidator_usdc_ata,connection,liquidator,mint_usdc,liquidator.publicKey);
@@ -185,7 +216,6 @@ describe("meridian_protocol", () => {
     //Minting USDC and LP's to the necessary ATA's
     await mintTokens("Lending Pool ATA" ,"USDC",connection,authority,mint_usdc,authority,10,lending_pool_usdc_ata);
     await mintTokens("Lender USDC ATA", "USDC",connection,authority,mint_usdc,authority,10,lender_usdc_ata);
-  
     
     await mintTokens("Lending POOL LP ATA", "LP",connection,authority,mint_lp, authority,10,lender_lp_ata);
   })  
@@ -193,7 +223,7 @@ describe("meridian_protocol", () => {
 
   // it("Is initialized!", async () => {
   //   // Add your test here.
-  //   const tx = await program.methods.initialize().rpc();
+  //   const tx = await program.methods.initialize().rpc()
   //   console.log("Your transaction signature", tx);
   // });
 
@@ -209,13 +239,20 @@ async function generateKeypair(name: String,keypair: Keypair) {
 }
 
 
-async function airdrop(key: PublicKey, amount: number,connection: Connection) {
+async function airdrop(provider: anchor.Provider,key: PublicKey, amount: number,connection: Connection) {
   const tx_signature = await connection.requestAirdrop(
     key,
     amount*anchor.web3.LAMPORTS_PER_SOL,
   );
 
-  console.log(`Airdrop confirmed to ${key}. Transaction Signature: ${tx_signature}`)
+  const tx_confirmed = await connection.confirmTransaction({
+    signature: tx_signature,
+    blockhash: (await provider.connection.getLatestBlockhash()).blockhash,
+    lastValidBlockHeight: (await provider.connection.getLatestBlockhash()).lastValidBlockHeight
+  });
+
+  console.log(`Airdrop confirmed to ${key}. Transaction Confirmation: ${tx_signature}.`)
+  console.log(`Confirmation status: ${tx_confirmed.value.err ? 'Failed': 'Confirmed'}`)
 }
 
 async function createAta(mint_name: String,name: String,key: PublicKey,connection: Connection,payer: anchor.web3.Signer,mint: PublicKey,authority: PublicKey) {
@@ -238,7 +275,7 @@ async function mintTokens(recipient_name: String,mint_name: String,connection: C
     payer,
     mint,
     destination,
-    authority.publicKey,
+    authority,
     amount*10**6
   );
 

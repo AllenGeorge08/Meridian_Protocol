@@ -200,7 +200,8 @@ pub mod meridian_protocol {
 
     //GETTER FUNCTIONS FOR REPAY LEFT
     pub fn total_debt_left(ctx: Context<Repay>) -> Result<()> {
-        ctx.accounts.total_debt_to_repay()?;
+        let total_debt = ctx.accounts.total_debt_to_repay()?;
+        
         Ok(())
     }
 
