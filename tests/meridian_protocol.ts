@@ -1,13 +1,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { MeridianProtocol } from "../target/types/meridian_protocol";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { program } from "@coral-xyz/anchor/dist/cjs/native/system";
-import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
+import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { program, SYSTEM_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/native/system";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, createMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createSignerFromKeypair, generateSigner, KeypairSigner, signerIdentity } from "@metaplex-foundation/umi";
 import { fromWeb3JsKeypair, fromWeb3JsPublicKey, toWeb3JsPublicKey } from "@metaplex-foundation/umi-web3js-adapters";
 import { createV1, mplCore } from "@metaplex-foundation/mpl-core";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
+import { BN } from "bn.js";
 
 describe("meridian_protocol", () => {
   // Configure the client to use the local cluster.
@@ -206,13 +207,12 @@ describe("meridian_protocol", () => {
     lender_lp_ata = await createAta("LP","Lender",lender_lp_ata,connection,lender,mint_lp,lender.publicKey);
     
     //e The owners for both LPool ATA's are Authority
-    lending_pool_usdc_ata = await createAta("USDC","Lending Pool",lending_pool_usdc_ata,connection, payer.payer,mint_usdc,authority.publicKey);
-    lending_pool_lp_ata = await createAta("LP","Lending Pool",lending_pool_lp_ata,connection,payer.payer,mint_lp,authority.publicKey);
+    lending_pool_usdc_ata = await createAta("USDC","Lending Pool",lending_pool_usdc_ata,connection, authority,mint_usdc,authority.publicKey);
+    lending_pool_lp_ata = await createAta("LP","Lending Pool",lending_pool_lp_ata,connection,authority,mint_lp,authority.publicKey);
 
     borrower_usdc_ata = await createAta("USDC","Borrower",borrower_usdc_ata,connection, borrower,mint_usdc,borrower.publicKey);
     liquidator_usdc_ata = await createAta("USDC","Liquidator",liquidator_usdc_ata,connection,liquidator,mint_usdc,liquidator.publicKey);
     
-
     //Minting USDC and LP's to the necessary ATA's
     await mintTokens("Lending Pool ATA" ,"USDC",connection,authority,mint_usdc,authority,10,lending_pool_usdc_ata);
     await mintTokens("Lender USDC ATA", "USDC",connection,authority,mint_usdc,authority,10,lender_usdc_ata);
@@ -220,17 +220,74 @@ describe("meridian_protocol", () => {
     await mintTokens("Lending POOL LP ATA", "LP",connection,authority,mint_lp, authority,10,lender_lp_ata);
   })  
   
+  it("Initialize the Pool",async() => {
+   
+    let ltv = 7500; //LTV = 75%
+    let u1_bps = 0; 
+    let u2_bps = 2500; 
+    let u3_bps = 5000;
+    let u4_bps = 7500;
+    let u5_bps = 9000;
 
-  // it("Is initialized!", async () => {
-  //   // Add your test here.
-  //   const tx = await program.methods.initialize().rpc()
-  //   console.log("Your transaction signature", tx);
-  // });
+    let apr_1 = 500;
+    let apr_2 = 800;
+    let apr_3 = 1200;
+    let apr_4 = 1800;
+    let apr_5 = 2000;
 
-  it("Before test runs", async() => {
-    console.log("Test works...")
+    let liquidation_threshold_bps =10000;
+    let liquidation_penalty_bps = 1000; //10% of total debt
+    let liquidator_reward_bps = 2000; //20% of total penalty
+
+    let early_withdrawal_fee_bps = 100;
+    let origination_fee_bps = 100;
+    
+    let withdrawal_epoch = new BN(7*86400);
+
+    const tx = await program.methods.initialize(
+       ltv,
+       u1_bps,
+       u2_bps,
+       u3_bps,
+       u4_bps,
+       u5_bps,
+       apr_1,
+       apr_2,
+       apr_3,
+       apr_4,
+       apr_5,
+       early_withdrawal_fee_bps,
+       origination_fee_bps,
+       withdrawal_epoch,
+       liquidation_threshold_bps,
+       liquidation_penalty_bps,
+       liquidator_reward_bps
+    ).accountsPartial({
+      authority: authority.publicKey,
+      mint: mint_usdc,
+      mintLp: mint_lp,
+      lendingPool: lending_pool_pda,
+      adminRegistry: admin_registry,
+      mockOracle: mock_oracle,
+      lendingPoolUsdcAta: lending_pool_usdc_ata,
+      lendingPoolLpAta: lending_pool_lp_ata,
+      protocolSeizeVault: lending_pool_seize_vault_PDA,
+      protocolVerificationVault: lending_pool_verification_vault,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    }).signers([authority]).rpc();
+
+    console.log("Pool Initialized Succesfully...")
+
+    const poolState = await program.account.lendingPool.fetch(lending_pool_pda);
+    log_state("Pool Authority: ", poolState.owner);
   })
 });
+
+function log_state(str: String, state: any) { 
+  console.log(`${str} : ${state}`)
+}
 
 async function generateKeypair(name: String,keypair: Keypair) {
   keypair = Keypair.generate();
@@ -284,7 +341,4 @@ async function mintTokens(recipient_name: String,mint_name: String,connection: C
 
 }
 
-//Creating and minting the rwa token..
-async function minting_rwa_token(){
 
-}

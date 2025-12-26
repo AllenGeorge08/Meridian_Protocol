@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 pub use instructions::*;
 pub use states::*;
 
-declare_id!("4QTQjYZco26cXUVXeNsTnTvjGc2t58rwFxdQnjgzSwFG");
+declare_id!("HBcF33H6F61CG3g5NEDxVLfdM3HnjcFcZuE6wUnENMnt");
 
 #[program]
 pub mod meridian_protocol {

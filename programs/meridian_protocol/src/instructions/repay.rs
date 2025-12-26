@@ -177,7 +177,6 @@ impl<'info> Repay<'info> {
     }
 
     pub fn calculate_liquidation_penalty(&mut self) -> Result<u64> {
-        // let total_user_debt = self.total_debt_to_repay()?;
         let total_user_debt = self.borrower_state.principal_borrowed;
 
         let liquidation_penalty = total_user_debt
@@ -214,5 +213,5 @@ impl<'info> Repay<'info> {
         Ok(health_factor)
     }
 
-    //withdraw the protocol fees to whatever account..
+    //withdraw the protocol fees to whatever account..Add a admin controlled function for that!
 }

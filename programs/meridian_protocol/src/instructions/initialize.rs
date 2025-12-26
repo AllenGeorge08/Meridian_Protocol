@@ -45,26 +45,26 @@ pub struct Initialize<'info> {
         init_if_needed,
         payer = authority,
         associated_token::mint = mint,
-        associated_token::authority = lending_pool,
+        associated_token::authority = authority,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_usdc_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        init_if_needed,
+         init_if_needed,
         payer = authority,
         associated_token::mint = mint_lp,
-        associated_token::authority = lending_pool,
+        associated_token::authority = authority,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_lp_ata: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(
-        init_if_needed,
-        payer = authority,
-        associated_token::mint = mint,
-        associated_token::authority = lending_pool,
-        associated_token::token_program = token_program,
-    )]
-    pub protocol_fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
+    // #[account(
+    //     init_if_needed,
+    //     payer = authority,
+    //     associated_token::mint = mint,
+    //     associated_token::authority = lending_pool,
+    //     associated_token::token_program = token_program,
+    // )]
+    // pub protocol_fee_vault: Box<InterfaceAccount<'info, TokenAccount>>,
     ///CHECK: Protocol PDA where the liquidation seized collateral rwa will be sent
     #[account(
         mut,
@@ -152,7 +152,7 @@ impl<'info> Initialize<'info> {
 
         lending_pool.is_locked = false;
 
-        lending_pool.protocol_fee_vault = self.protocol_fee_vault.key();
+        // lending_pool.protocol_fee_vault = self.protocol_fee_vault.key();
 
         self.log_state();
 
