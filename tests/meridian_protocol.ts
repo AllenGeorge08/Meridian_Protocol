@@ -298,6 +298,35 @@ describe("meridian_protocol", () => {
     const adminregstate = await program.account.adminRegistry.fetch(admin_registry);
     log_state("Admin registry admins : ", adminregstate.admins)
   })
+
+
+  //Lock Pool Test 
+  it("Lock Pool", async() => {
+    const tx = await program.methods.lock().accountsPartial({
+      authority: authority.publicKey,
+      lendingPool: lending_pool_pda,
+      systemProgram: SystemProgram.programId
+    }).signers([authority]).rpc();
+
+    console.log("Pool Locked Succesfully: ",tx);
+    const PoolState = await program.account.lendingPool.fetch(lending_pool_pda);
+    log_state(`Pool Is Locked : `,  PoolState.isLocked);
+  })
+
+   it("UnLock Pool", async() => {
+    const tx = await program.methods.unlockPool().accountsPartial({
+      authority: authority.publicKey,
+      lendingPool: lending_pool_pda,
+      systemProgram: SystemProgram.programId
+    }).signers([authority]).rpc();
+
+    console.log("Pool Unlocked Succesfully: ",tx);
+    const PoolState = await program.account.lendingPool.fetch(lending_pool_pda);
+    log_state(`Pool Is Locked : `,  PoolState.isLocked);
+  })
+
+  
+
 });
 
 
