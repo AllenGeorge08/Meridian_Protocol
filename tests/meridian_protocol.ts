@@ -278,12 +278,28 @@ describe("meridian_protocol", () => {
       systemProgram: SystemProgram.programId,
     }).signers([authority]).rpc();
 
-    console.log("Pool Initialized Succesfully...")
+    console.log("Pool Initialized Succesfully...",tx);
 
     const poolState = await program.account.lendingPool.fetch(lending_pool_pda);
     log_state("Pool Authority: ", poolState.owner);
   })
+
+
+  it("Add Admin Test: ", async() => {
+    const tx = await program.methods.addAdmin(admin_one.publicKey).accountsPartial({
+      authority: authority.publicKey,
+      adminRegistry: admin_registry,
+      lendingPool: lending_pool_pda,
+      systemProgram: SystemProgram.programId,
+    }).signers([authority]).rpc();
+
+    console.log("Admin added succesfully : ", tx);
+
+    const adminregstate = await program.account.adminRegistry.fetch(admin_registry);
+    log_state("Admin registry admins : ", adminregstate.admins)
+  })
 });
+
 
 function log_state(str: String, state: any) { 
   console.log(`${str} : ${state}`)
