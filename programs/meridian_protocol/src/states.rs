@@ -162,7 +162,7 @@ impl MockOracleState {
             Errors::StaleOracle
         );
 
-        let price = self.price as i128;
+        let price = self.price as i128;//e price in per troy ounce
         let exponent = self.exponent;
 
         let price_per_ounce_usd: i128 = if exponent < 0 {

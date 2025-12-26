@@ -15,6 +15,8 @@ use anchor_spl::token_interface::{
 #[derive(Accounts)]
 pub struct Lending<'info> {
     #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(mut)]
     pub lender: Signer<'info>,
     #[account(mut)]
     pub mint: Box<InterfaceAccount<'info, Mint>>,
@@ -29,7 +31,7 @@ pub struct Lending<'info> {
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = lending_pool,
+        associated_token::authority = lending_pool.owner,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_usdc_ata: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -44,7 +46,7 @@ pub struct Lending<'info> {
     #[account(
         mut,
         associated_token::mint = mint_lp,
-        associated_token::authority = lending_pool,
+        associated_token::authority = lending_pool.owner,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_lp_ata: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -100,24 +102,26 @@ impl<'info> Lending<'info> {
     fn mint_shares(&mut self, amount_deposited: u64) -> Result<()> {
         let amount_shares_to_mint = self.calculate_shares_to_mint(amount_deposited);
 
+        let authority = self.lending_pool.owner;
+
         let accounts = MintTo {
             mint: self.mint_lp.to_account_info(),
-            authority: self.lending_pool.to_account_info(),
+            authority: self.authority.to_account_info(),
             to: self.lender_lp_ata.to_account_info(),
         };
 
         let cpi_program = self.token_program.to_account_info();
 
-        let lending_pool_owner = self.lending_pool.owner.key();
-        let seeds = &[
-            b"meridian_pool",
-            lending_pool_owner.as_ref(),
-            &[self.lending_pool.bump_lending_pool],
-        ];
+        // let lending_pool_owner = self.lending_pool.owner.key();
+        // let seeds = &[
+        //     b"meridian_pool",
+        //     lending_pool_owner.as_ref(),
+        //     &[self.lending_pool.bump_lending_pool],
+        // ];
 
-        let signer_seeds = &[&seeds[..]];
+        // let signer_seeds = &[&seeds[..]];
 
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, accounts, signer_seeds);
+        let cpi_ctx = CpiContext::new(cpi_program, accounts);
 
         mint_to(cpi_ctx, amount_shares_to_mint)?;
         msg!("Minted Lp Tokens to: {}", self.lender_lp_ata.key());

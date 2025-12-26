@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-meridian_protocol = "HBcF33H6F61CG3g5NEDxVLfdM3HnjcFcZuE6wUnENMnt"
+meridian_protocol = "BWECTiw4de85dPk7t9Sems64115EugAvzQ9sFPPi12N2"
 
 [registry]
 url = "https://api.apr.dev"

@@ -4,14 +4,13 @@ pub mod instructions;
 pub mod states;
 use anchor_lang::prelude::*;
 pub use instructions::*;
+pub use instructions::{mock_oracle};
 pub use states::*;
 
-declare_id!("HBcF33H6F61CG3g5NEDxVLfdM3HnjcFcZuE6wUnENMnt");
+declare_id!("BWECTiw4de85dPk7t9Sems64115EugAvzQ9sFPPi12N2");
 
 #[program]
-pub mod meridian_protocol {
-
-    use crate::instructions::update_collateral_valuation::UpdateCollateralValuation;
+pub mod meridian_protocol{
 
     use super::*;
 
@@ -86,6 +85,11 @@ pub mod meridian_protocol {
         Ok(())
     }
 
+    pub fn update_oracle_values(ctx: Context<MockOracle>,price: i64,exponent: i32) -> Result<()>{
+        ctx.accounts.update_oracle_values(price, exponent)?;
+        Ok(())
+    }
+
     pub fn amount_to_shares(ctx: Context<Lending>, deposit_amount: u64) -> Result<u64> {
         let amount = ctx.accounts.calculate_shares_to_mint(deposit_amount);
 
@@ -153,6 +157,7 @@ pub mod meridian_protocol {
         Ok(())
     }
 
+    //DEPOSIT COLLATERAL TO THE LPOOL..
     pub fn deposit_collateral(ctx: Context<Borrow>) -> Result<()> {
         ctx.accounts.deposit_collateral()?;
         Ok(())

@@ -217,11 +217,10 @@ describe("meridian_protocol", () => {
     await mintTokens("Lending Pool ATA" ,"USDC",connection,authority,mint_usdc,authority,10,lending_pool_usdc_ata);
     await mintTokens("Lender USDC ATA", "USDC",connection,authority,mint_usdc,authority,10,lender_usdc_ata);
     
-    await mintTokens("Lending POOL LP ATA", "LP",connection,authority,mint_lp, authority,10,lender_lp_ata);
+    await mintTokens("Lending POOL LP ATA", "LP",connection,authority,mint_lp, authority,10,lending_pool_lp_ata);
   })  
   
   it("Initialize the Pool",async() => {
-   
     let ltv = 7500; //LTV = 75%
     let u1_bps = 0; 
     let u2_bps = 2500; 
@@ -282,6 +281,11 @@ describe("meridian_protocol", () => {
 
     const poolState = await program.account.lendingPool.fetch(lending_pool_pda);
     log_state("Pool Authority: ", poolState.owner);
+    const pool_usdc_balance = await connection.getTokenAccountBalance(lender_usdc_ata);
+    log_state("Pool USDC Balance After Initialization: ", pool_usdc_balance.value.amount);
+
+    const pool_lp_balance = await connection.getTokenAccountBalance(lender_lp_ata);
+    log_state("Pool LP Balance After Initialization: ", pool_lp_balance.value.amount);
   })
 
 
@@ -324,11 +328,51 @@ describe("meridian_protocol", () => {
     const PoolState = await program.account.lendingPool.fetch(lending_pool_pda);
     log_state(`Pool Is Locked : `,  PoolState.isLocked);
   })
-
   
+  it("Lending", async() => {
+    const lender_usdc_balance_before  = await connection.getTokenAccountBalance(lender_usdc_ata);
+    const lender_lp_balace_before = await connection.getTokenAccountBalance(lender_lp_ata);
+        
+   log_state("Lender USDC Balance Before Deposit: ", lender_usdc_balance_before.value.amount);
+   log_state("Lender LP State Before Balance: ", lender_lp_balace_before.value.amount);
+    const tx = await program.methods.deposit(new BN(5)).accountsPartial({
+      authority: authority.publicKey,
+      lender: lender.publicKey,
+      mint: mint_usdc,
+      mintLp: mint_lp,
+      lendingPool: lending_pool_pda,
+      lenderUsdcAta: lender_usdc_ata,
+      lenderLpAta: lender_lp_ata,
+      lendingPoolLpAta: lending_pool_lp_ata,
+      lendingPoolUsdcAta: lending_pool_usdc_ata,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    }).signers([authority,lender]).rpc();
 
+   console.log("Lender Deposit transaction was succesful");
+   const lender_usdc_balance_after  = await connection.getTokenAccountBalance(lender_usdc_ata);
+   const lender_lp_balace_after = await connection.getTokenAccountBalance(lender_lp_ata);
+    
+   log_state("Lender USDC Balance After Deposit: ", lender_usdc_balance_after.value.amount);
+   log_state("Lender LP State After Balance: ", lender_lp_balace_after.value.amount);
+  })
+
+ it("Update Oracle Values", async() => {
+  let price = new BN(2000 * 10**8); //$2000 * 10**8 per troy ounce which is scaled further..
+  let exponent = -8; 
+   const tx = await program.methods.updateOracleValues(price,exponent).accountsPartial({
+    ownerOracle: admin_one.publicKey,
+    lendingPool: lending_pool_pda,
+    adminRegistry: admin_registry,
+    systemProgram: SystemProgram.programId,
+   }).signers([admin_one]).rpc();
+
+   let oracle_state = await program.account.mockOracleState.fetch(mock_oracle);
+   log_state("Gold  Price Per Troy Ounce..: ",oracle_state.price);
+   log_state("Gold Exponent..: ", oracle_state.exponent);
+ })
 });
-
 
 function log_state(str: String, state: any) { 
   console.log(`${str} : ${state}`)
