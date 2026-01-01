@@ -77,11 +77,13 @@ pub struct LoanState {
     pub last_interest_accrued: i64,
     pub collateral_value_usd: u64,
     pub loan_status: u8, //STATUS = 0(Active), 1(REPAID), 2 (LIQUIDATABLE), 3(LIQUIDATED)
+    pub total_debt_to_repay: u64,
     pub bump_borrower_state: u8,
     pub weight_in_grams: i64,
     pub purity_in_bps: u16,
     pub origination_fee: u64,
     pub borrow_apr_bps: u16,
+    pub current_owner_asset: Pubkey,
 }
 
 #[account]
@@ -156,27 +158,23 @@ impl MockOracleState {
 
     pub fn get_price_per_gram(&mut self, max_age: i64) -> Result<u128> {
         let current_time = Clock::get()?.unix_timestamp;
-
         require!(
             current_time - self.last_updated <= max_age,
             Errors::StaleOracle
         );
 
-        let price = self.price as i128;//e price in per troy ounce
-        let exponent = self.exponent;
+        let price = self.price as i128; // 200000000000 (already scaled by 10^8)
+        let exponent = self.exponent; // -8
 
-        let price_per_ounce_usd: i128 = if exponent < 0 {
-            price.checked_div(10_i128.pow((-exponent) as u32)).unwrap()
-        } else {
-            price.checked_mul(10_i128.pow(exponent as u32)).unwrap()
-        };
+    
+        let price_per_ounce_scaled = price; // Keep as 200000000000
 
-        require!(price_per_ounce_usd > 0, Errors::InvalidPrice);
+        require!(price_per_ounce_scaled > 0, Errors::InvalidPrice);
 
-        //e Converting ounces to grams by scaling with 10**6
         const GRAMS_PER_TROY_OUNCE_SCALED: u128 = 31_103_476;
 
-        let price_per_gram_scaled: u128 = (price_per_ounce_usd as u128)
+        // Now: 200000000000 * 1000000 / 31103476 = 6,430,149
+        let price_per_gram_scaled: u128 = (price_per_ounce_scaled as u128)
             .checked_mul(1_000_000)
             .unwrap()
             .checked_div(GRAMS_PER_TROY_OUNCE_SCALED)

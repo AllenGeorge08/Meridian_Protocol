@@ -1,5 +1,5 @@
-use anchor_lang::prelude::*;
 use crate::AdminRegistry;
+use anchor_lang::prelude::*;
 // use crate::constants::{GOLD_USD_PRICE_FEED, MAX_AGE};
 use crate::errors::Errors;
 use crate::states::{LendingPool, LoanState};
@@ -41,7 +41,6 @@ pub struct UpdateCollateralValuation<'info> {
     )]
     pub admin_registry: Box<Account<'info, AdminRegistry>>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub price_update: Account<'info, PriceUpdateV2>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
     ///CHECK: SAFE
@@ -60,6 +59,13 @@ impl<'info> UpdateCollateralValuation<'info> {
             self.borrower.key(),
             amount
         );
+        Ok(())
+    }
+
+    //e for test purposes
+    pub fn update_total_debt_temporarily(&mut self, amount: u64) -> Result<()>{
+        require!(self.admin_registry.is_admin(self.signer.key()), Errors::OnlyAdmin);
+        self.borrower_state.total_debt_to_repay += amount;
         Ok(())
     }
 }

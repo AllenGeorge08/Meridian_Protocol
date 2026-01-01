@@ -2,11 +2,10 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { MeridianProtocol } from "../target/types/meridian_protocol";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { program, SYSTEM_PROGRAM_ID } from "@coral-xyz/anchor/dist/cjs/native/system";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, createMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { createSignerFromKeypair, generateSigner, KeypairSigner, signerIdentity } from "@metaplex-foundation/umi";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, createMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID,TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { createSignerFromKeypair, generateSigner, KeypairSigner, signerIdentity, some } from "@metaplex-foundation/umi";
 import { fromWeb3JsKeypair, fromWeb3JsPublicKey, toWeb3JsPublicKey } from "@metaplex-foundation/umi-web3js-adapters";
-import { createV1, mplCore } from "@metaplex-foundation/mpl-core";
+import { createV1, fetchAssetsByOwner, MPL_CORE_PROGRAM_ID, mplCore} from "@metaplex-foundation/mpl-core";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { BN } from "bn.js";
 
@@ -44,6 +43,8 @@ describe("meridian_protocol", () => {
   let admin_registry: PublicKey;
   //mock oracle
   let mock_oracle: PublicKey;
+  //borrower state
+  let borrower_state_pda: PublicKey;
 
   //Day 2
  
@@ -55,7 +56,6 @@ describe("meridian_protocol", () => {
 
   //ATA's
   //USDC ATA's (Lending Pool, Lender,Borrower,Liquidator)..
-  
   let lending_pool_usdc_ata: PublicKey;
   let lender_usdc_ata: PublicKey;
   let borrower_usdc_ata: PublicKey;
@@ -70,6 +70,7 @@ describe("meridian_protocol", () => {
   let lending_pool_verification_vault_bump: number;
   let admin_registry_bump: number;
   let mock_oracle_bump: number;
+  let borrower_bump: number;
   
    //ASSET (GOLD RWA)
    let asset: KeypairSigner;
@@ -103,15 +104,16 @@ describe("meridian_protocol", () => {
 
     asset  = generateSigner(umi);
 
-    await createV1(
-      umi,
-      {
+
+    await createV1(umi,{
         asset,
         name: "GOLD RWA",
-        uri: " ",
-        owner: fromWeb3JsPublicKey(borrower.publicKey)
-      }
-    );
+        uri: "",
+        owner: fromWeb3JsPublicKey(borrower.publicKey),
+      }).sendAndConfirm(umi);
+
+    const assetAcc = await umi.rpc.getAccount(asset.publicKey);
+    console.log(`Owner of the asset account: ${assetAcc.owner}`);
 
     assetAddress = toWeb3JsPublicKey(asset.publicKey);
         console.log("Asset created at: ", assetAddress.toBase58());
@@ -151,6 +153,8 @@ describe("meridian_protocol", () => {
       program.programId
     );
 
+
+
     console.log("Lending Pool Verification Vault PDA:",lending_pool_verification_vault.toBase58());
     console.log("Lending Pool Verification Vault Bump: ",lending_pool_verification_vault_bump);
 
@@ -178,6 +182,18 @@ describe("meridian_protocol", () => {
 
     console.log("Lending Pool Mock Oracle: ",mock_oracle.toBase58());
     console.log("Mock Oracle Bump: ", mock_oracle_bump);
+
+    //Borrower state pda
+    [borrower_state_pda,borrower_bump] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("meridian_borrower_state"),
+        borrower.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
+
+    console.log("Borrower State Pda: ", borrower_state_pda.toBase58());
+    console.log("Borrower Bump: ",borrower_bump);
 
 
     //Creating mints
@@ -214,9 +230,9 @@ describe("meridian_protocol", () => {
     liquidator_usdc_ata = await createAta("USDC","Liquidator",liquidator_usdc_ata,connection,liquidator,mint_usdc,liquidator.publicKey);
     
     //Minting USDC and LP's to the necessary ATA's
-    await mintTokens("Lending Pool ATA" ,"USDC",connection,authority,mint_usdc,authority,10,lending_pool_usdc_ata);
-    await mintTokens("Lender USDC ATA", "USDC",connection,authority,mint_usdc,authority,10,lender_usdc_ata);
-    
+    await mintTokens("Lending Pool ATA" ,"USDC",connection,authority,mint_usdc,authority,10000000,lending_pool_usdc_ata);
+    await mintTokens("Lender USDC ATA", "USDC",connection,authority,mint_usdc,authority,1000,lender_usdc_ata);
+    await mintTokens("Borrower USDC ATA","USDC", connection, authority,mint_usdc,authority,1000000000,borrower_usdc_ata); 
     await mintTokens("Lending POOL LP ATA", "LP",connection,authority,mint_lp, authority,10,lending_pool_lp_ata);
   })  
   
@@ -358,8 +374,10 @@ describe("meridian_protocol", () => {
    log_state("Lender LP State After Balance: ", lender_lp_balace_after.value.amount);
   })
 
+
+ //Admin updates the oracle values for test purposes..
  it("Update Oracle Values", async() => {
-  let price = new BN(2000 * 10**8); //$2000 * 10**8 per troy ounce which is scaled further..
+  let price = new BN(2000*10**8); //$2000 * 10**8 per troy ounce which is scaled further..
   let exponent = -8; 
    const tx = await program.methods.updateOracleValues(price,exponent).accountsPartial({
     ownerOracle: admin_one.publicKey,
@@ -372,7 +390,205 @@ describe("meridian_protocol", () => {
    log_state("Gold  Price Per Troy Ounce..: ",oracle_state.price);
    log_state("Gold Exponent..: ", oracle_state.exponent);
  })
+
+ it("Borrow assets", async() => {
+
+  // Before the transaction
+  const accountInfo = await connection.getAccountInfo(
+  new PublicKey("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d")
+  );
+
+  console.log("MPL Core loaded?", accountInfo !== null);
+  console.log("MPL Core owner:", accountInfo?.owner.toBase58());
+
+
+  //Deposit asset for verification
+  try {
+    const tx_deposit_for_verification = await program.methods.depositCollateralForVerification().accountsPartial({
+    authority: authority.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerUsdcAta: borrower_usdc_ata,
+    protocolVerificationVault: lending_pool_verification_vault,
+    rwaAsset: asset.publicKey,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+   }).signers([authority,borrower]).rpc();
+
+   console.log(`Succesfully deposited asset for verification: ${tx_deposit_for_verification}`);
+  } catch (error) {
+    //Unsupported Program ID error; debugging..The problem was with the MPL_CORE_PROGRAM_ID, it was using mpl_core_program_id..Changed anchor.toml
+    console.log(ASSOCIATED_TOKEN_PROGRAM_ID.toBase58());
+    console.log(SystemProgram.programId.toBase58());
+    console.log(TOKEN_PROGRAM_ID.toBase58());
+    console.log(MPL_CORE_PROGRAM_ID);
+    console.log(error)
+    console.log(program.programId.toBase58());
+
+    throw error;
+  }
+
+  const borrower_state = await program.account.loanState.fetch(borrower_state_pda);
+  const verification_id = borrower_state.verificationId;
+
+  console.log("The verification id for the asset is: ",verification_id);
+
+  //Verifying the asset
+  let is_verified = false;
+  //e the purity wass wrong
+  const verify_asset_tx = await program.methods.verifyAsset(verification_id,is_verified,9999,new BN(2000)).accountsPartial({
+    signer: admin_one.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    adminRegistry: admin_registry,
+    borrowerState: borrower_state_pda,
+    borrowerUsdcAta: borrower_usdc_ata,
+    rwaAsset: asset.publicKey,
+    protocolVerificationVault: lending_pool_verification_vault,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+  }).signers([admin_one]).rpc();
+
+  const borrower_state_after = await program.account.loanState.fetch(borrower_state_pda);
+  console.log(`Asset is succesfully verified: ${verify_asset_tx}`);
+  const is_asset_verified = borrower_state_after.isVerified;
+  console.log(`Asset verification status: ${is_asset_verified}`); 
+
+  //Depositing collateral
+  const deposit_collateral = await program.methods.depositCollateral().accountsPartial({
+    authority: authority.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerUsdcAta: borrower_usdc_ata,
+    borrowerState: borrower_state_pda,
+    protocolVerificationVault: lending_pool_verification_vault,
+    rwaAsset: asset.publicKey,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+ }).signers([authority,borrower]).rpc();
+
+ 
+ let borrower_state_three = await program.account.loanState.fetch(borrower_state_pda);
+ let current_owner = borrower_state_three.currentOwnerAsset;
+ console.log("Current Owner of the asset is: ", current_owner.toBase58());
+ console.log("Collateral Verified and transferred to the lending pool succesfully. Now the borrower can borrow: ",deposit_collateral);
+
+  console.log("Borrower USDC Balance before borrowing", (await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount);
+
+  const borrow_tx = await program.methods.borrowAssets().accountsPartial({
+    authority: authority.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerState: borrower_state_pda,
+    borrowerUsdcAta: borrower_usdc_ata,
+    rwaAsset: assetAddress,
+    protocolVerificationVault: lending_pool_verification_vault,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+  }).signers([authority, borrower]).rpc();
+
+  console.log(`Borrowed successfully: ${borrow_tx}`);
+  
+  console.log("Borrower USDC Balance after borrowing", (await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount);
+  console.log("Borrowed succesfully", borrow_tx);
+   
 });
+
+ it("Repay assets", async() => {
+   //e calculating total debt left..
+
+   //e Manually updating total debt for test purposes
+   let amount = new BN(11000*10**6);
+   const update_tx = await program.methods.updateTotalDebt(amount).accountsPartial({
+    signer: admin_one.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    borrowerState: borrower_state_pda,
+    adminRegistry: admin_registry,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID
+   }).signers([admin_one]).rpc();
+  
+  
+  const borrower_state = await program.account.loanState.fetch(borrower_state_pda);
+  const total_debt_left = borrower_state.totalDebtToRepay;
+  log_state("Total debt to repay is: ", total_debt_left);
+  log_state("Admin succesfully updated total debt to repay for tests: ",update_tx);
+
+
+  const lpoolbefore = (await connection.getTokenAccountBalance(lending_pool_usdc_ata)).value.amount;
+  log_state("Lending Pool USDC ATA Balance Before: ",lpoolbefore);
+
+   const borrowerbefore = (await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount;
+  log_state("Borrower USDC ATA Balance Before: ",borrowerbefore);
+
+   const assetsByOwnerBefore = await fetchAssetsByOwner(umi, lending_pool_pda.toString(), {
+     skipDerivePlugins: false, 
+   })
+   ;
+
+
+   console.log("Assets owned by lending pool: ",assetsByOwnerBefore);
+
+   log_state("Lending Pool PDA Address:" ,lending_pool_pda.toBase58());
+
+  const repay_tx = await program.methods.repayDebt(total_debt_left).accountsPartial({
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerState: borrower_state_pda,
+    borrowerUsdcAta: borrower_usdc_ata,
+    rwaAsset: asset.publicKey,
+    protocolVerificationVault: lending_pool_verification_vault,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID
+  }).signers([borrower]).rpc();
+
+  const assetsByBorrowerAfter = await fetchAssetsByOwner(umi, borrower.publicKey.toString(), {
+     skipDerivePlugins: true, 
+   });
+
+  log_state("Assets Owned By Borrower After Repay :",assetsByBorrowerAfter);
+
+  const lpoolafter = (await connection.getTokenAccountBalance(lending_pool_usdc_ata)).value.amount;
+  log_state("Lending Pool USDC ATA Balance After: ",lpoolafter);
+
+  const borrowerAfter = (await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount;
+  log_state("Borrower USDC ATA Balance After: ", borrowerAfter);
+ });
+})
+
+
+
+
+//HELPERS
+
+
 
 function log_state(str: String, state: any) { 
   console.log(`${str} : ${state}`)
@@ -429,5 +645,4 @@ async function mintTokens(recipient_name: String,mint_name: String,connection: C
   return mintTx
 
 }
-
 

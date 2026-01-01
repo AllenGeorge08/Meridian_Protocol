@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-meridian_protocol = "7YrctxjgQzZTk3DSEjjLpN1Djpc8ALkML1Gjvz9doQkH"
+meridian_protocol = "3hkm2XE7Zfwdv8sBK5oo4acQ6XdM4ypCm6ey68T4i9rN"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,3 +17,5 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+

@@ -1,4 +1,7 @@
+use core::time;
+
 use anchor_lang::prelude::*;
+use anchor_spl::token::Token;
 
 // use crate::constants::{GOLD_USD_PRICE_FEED, MAX_AGE};
 use crate::errors::Errors;
@@ -32,7 +35,7 @@ pub struct Repay<'info> {
     #[account(
         mut,
         associated_token::mint = mint_usdc,
-        associated_token::authority = lending_pool,
+        associated_token::authority = lending_pool.owner,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_usdc_ata: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -66,22 +69,23 @@ pub struct Repay<'info> {
     )]
     pub mock_oracle: Box<Account<'info, MockOracleState>>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub price_update: Account<'info, PriceUpdateV2>,
-    pub token_program: Interface<'info, TokenInterface>,
+    // pub price_update: Account<'info, PriceUpdateV2>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     ///CHECK: SAFE
     pub mpl_core_program: AccountInfo<'info>,
 }
 
 impl<'info> Repay<'info> {
-    pub fn repay(&mut self, amount_to_repay: u64) -> Result<()> {
+    pub fn repay(&mut self, amount_to_repay: u64,current_time: i64) -> Result<()> {
         //e Loan can be repaid only if it's not repaid earlier or your asset is not liquidated
         require!(
             self.borrower_state.loan_status == 0,
             Errors::CannotRepayLoan
         );
 
-        let total_debt_to_repay = self.total_debt_to_repay()?;
+        // let current_time = self.get_current_time()?;
+        let total_debt_to_repay = self.total_debt_to_repay(current_time)?;
         require!(
             amount_to_repay >= total_debt_to_repay,
             Errors::RepayAmountNotEnough
@@ -111,13 +115,19 @@ impl<'info> Repay<'info> {
         Ok(())
     }
 
+    pub fn get_current_time(&mut self) -> Result<i64>{
+       let time =  Clock::get()?.unix_timestamp;
+       Ok(time)
+    }
+
     fn transfer_asset_to_user(&mut self) -> Result<()> {
-        let key = self.lending_pool.key();
+        let key = self.lending_pool.owner.key();
         let bump = self.lending_pool.bump_lending_pool;
 
         let signer_seeds: &[&[u8]] = &[b"meridian_pool", key.as_ref(), &[bump]];
         let seeds = &[signer_seeds];
 
+       
         TransferV1CpiBuilder::new(&self.mpl_core_program.to_account_info())
             .payer(&self.borrower.to_account_info())
             .new_owner(&self.borrower.to_account_info())
@@ -128,9 +138,9 @@ impl<'info> Repay<'info> {
         Ok(())
     }
 
-    pub fn total_debt_to_repay(&mut self) -> Result<u64> {
+    pub fn total_debt_to_repay(&mut self,current_time: i64) -> Result<u64> {
         //e collateral + interest accrued + liquidation_penalty_if applied
-        let total_interest_accrued_by_user = self.calculate_interest_accrued()?;
+        let total_interest_accrued_by_user = self.calculate_interest_accrued(current_time)?;
         let principal_borrowed = self.borrower_state.principal_borrowed;
         let origination_fee = self.borrower_state.origination_fee;
 
@@ -148,17 +158,23 @@ impl<'info> Repay<'info> {
         }
 
         self.borrower_state.interest_accrued += total_interest_accrued_by_user;
+        self.borrower_state.total_debt_to_repay += total_debt_to_repay;
         msg!("Total debt to repay is: {}", total_debt_to_repay);
         Ok(total_debt_to_repay)
     }
 
-    pub fn calculate_interest_accrued(&mut self) -> Result<u64> {
+    pub fn calculate_interest_accrued(&mut self,current_time: i64) -> Result<u64> {
         pub const SECONDS_PER_YEAR: u64 = 31_536_000;
-        let current_time = Clock::get()?.unix_timestamp;
+        // let current_time = Clock::get()?.unix_timestamp;
         let last_interest_accrued_at = self.borrower_state.last_interest_accrued;
 
         let borrow_apr_at_the_time_of_borrow = self.borrower_state.borrow_apr_bps;
         let time_delta = current_time - last_interest_accrued_at; //e Won't go below 0 so we can convert it to u64
+
+        if time_delta == 0{
+            msg!("No time elapsed, time is zero");
+           return Ok(0)
+        }
 
         let interest_accrued_numerator = self
             .borrower_state
@@ -214,4 +230,5 @@ impl<'info> Repay<'info> {
     }
 
     //withdraw the protocol fees to whatever account..Add a admin controlled function for that!
+
 }

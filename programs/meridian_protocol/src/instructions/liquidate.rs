@@ -2,6 +2,7 @@ use crate::errors::Errors;
 use crate::states::{LendingPool, LoanState, MockOracleState};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::Token;
 use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
@@ -64,7 +65,7 @@ pub struct Liquidate<'info> {
     )]
     pub mock_oracle: Box<Account<'info, MockOracleState>>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Interface<'info, TokenInterface>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     ///CHECK: SAFE
     pub mpl_core_program: AccountInfo<'info>,

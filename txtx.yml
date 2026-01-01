@@ -1,5 +1,5 @@
 ---
-name: meridian_protocol
+name: Meridian_Protocol
 id: meridianprotocol
 runbooks:
   - name: deployment

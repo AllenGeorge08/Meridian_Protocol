@@ -1,5 +1,5 @@
 ################################################################
-# Manage meridian_protocol deployment through Crypto Infrastructure as Code
+# Manage Meridian_Protocol deployment through Crypto Infrastructure as Code
 ################################################################
 
 addon "svm" {

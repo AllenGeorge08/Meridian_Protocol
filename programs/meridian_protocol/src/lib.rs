@@ -3,14 +3,14 @@ pub mod errors;
 pub mod instructions;
 pub mod states;
 use anchor_lang::prelude::*;
+pub use instructions::mock_oracle;
 pub use instructions::*;
-pub use instructions::{mock_oracle};
 pub use states::*;
 
-declare_id!("BWECTiw4de85dPk7t9Sems64115EugAvzQ9sFPPi12N2");
+declare_id!("3hkm2XE7Zfwdv8sBK5oo4acQ6XdM4ypCm6ey68T4i9rN");
 
 #[program]
-pub mod meridian_protocol{
+pub mod meridian_protocol {
 
     use super::*;
 
@@ -85,8 +85,13 @@ pub mod meridian_protocol{
         Ok(())
     }
 
-    pub fn update_oracle_values(ctx: Context<MockOracle>,price: i64,exponent: i32) -> Result<()>{
+    pub fn update_oracle_values(ctx: Context<MockOracle>, price: i64, exponent: i32) -> Result<()> {
         ctx.accounts.update_oracle_values(price, exponent)?;
+        Ok(())
+    }
+
+    pub fn update_total_debt(ctx: Context<UpdateCollateralValuation>, amount: u64) -> Result<()>{
+        ctx.accounts.update_total_debt_temporarily(amount)?;
         Ok(())
     }
 
@@ -144,6 +149,12 @@ pub mod meridian_protocol{
         Ok(())
     }
 
+    pub fn get_verification_id(ctx: Context<Borrow>) -> Result<u32> {
+        let id = ctx.accounts.get_verification_id()?;
+        msg!("The verification Id for the asset is: {}", id);
+        Ok(id)
+    }
+
     //ADMIN VERIFICATION..
     pub fn verify_asset(
         ctx: Context<Verify_asset>,
@@ -199,15 +210,18 @@ pub mod meridian_protocol{
 
     //REPAY
     pub fn repay_debt(ctx: Context<Repay>, amount_to_repay: u64) -> Result<()> {
-        ctx.accounts.repay(amount_to_repay)?;
+        let current_time = Clock::get()?.unix_timestamp;
+        ctx.accounts.repay(amount_to_repay,current_time)?;
         Ok(())
     }
 
+    
     //GETTER FUNCTIONS FOR REPAY LEFT
-    pub fn total_debt_left(ctx: Context<Repay>) -> Result<()> {
-        let total_debt = ctx.accounts.total_debt_to_repay()?;
-        
-        Ok(())
+    pub fn total_debt_left(ctx: Context<Repay>,current_time: i64) -> Result<u64> {
+        let total_debt = ctx.accounts.total_debt_to_repay(current_time)?;
+        msg!("Total debt to repay is: {}", total_debt);
+
+        Ok(total_debt)
     }
 
     //LIQUIDATE

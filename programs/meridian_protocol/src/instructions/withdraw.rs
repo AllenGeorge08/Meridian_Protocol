@@ -2,6 +2,7 @@ use crate::errors::Errors;
 use crate::states::{AdminRegistry, Lender, LendingPool};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::Token;
 use anchor_spl::token_interface::{
     burn, transfer_checked, Burn, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
@@ -63,7 +64,7 @@ pub struct Withdraw<'info> {
     )]
     pub lender_lp_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Interface<'info, TokenInterface>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 

@@ -2,6 +2,7 @@ use crate::errors::Errors;
 use crate::states::{AdminRegistry, LendingPool, LoanState};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::Token;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 // ▄▄▄      ▄▄▄  ▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄   ▄▄▄▄▄ ▄▄▄▄▄▄   ▄▄▄▄▄   ▄▄▄▄   ▄▄▄    ▄▄▄
@@ -25,7 +26,7 @@ pub struct Verify_asset<'info> {
     #[account(
         mut,
         associated_token::mint = mint_usdc,
-        associated_token::authority = lending_pool,
+        associated_token::authority = lending_pool.owner,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_usdc_ata: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -59,7 +60,7 @@ pub struct Verify_asset<'info> {
     )]
     pub protocol_verification_vault: UncheckedAccount<'info>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Interface<'info, TokenInterface>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     ///CHECK: SAFE
     pub mpl_core_program: AccountInfo<'info>,
@@ -83,14 +84,15 @@ impl<'info> Verify_asset<'info> {
         );
         self.borrower_state.is_verified = is_verified;
 
-        if is_verified == true {
-            self.borrower_state.is_rejected == false;
+        if is_verified {
+            self.borrower_state.is_rejected = false;
         } else {
-            self.borrower_state.is_rejected == true;
+            self.borrower_state.is_rejected = true;
         }
 
         self.borrower_state.weight_in_grams = weight_in_grams;
         self.borrower_state.purity_in_bps = purity_in_bps;
+        self.borrower_state.is_verified = true;
         Ok(())
     }
 }
