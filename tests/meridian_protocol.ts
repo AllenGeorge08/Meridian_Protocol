@@ -548,7 +548,6 @@ describe("meridian_protocol", () => {
    })
    ;
 
-
    console.log("Assets owned by lending pool: ",assetsByOwnerBefore);
 
    log_state("Lending Pool PDA Address:" ,lending_pool_pda.toBase58());
@@ -581,15 +580,192 @@ describe("meridian_protocol", () => {
   const borrowerAfter = (await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount;
   log_state("Borrower USDC ATA Balance After: ", borrowerAfter);
  });
+
+ it("Liquidate", async() => {
+   console.log("Liquidation setup.....");
+  //e depositing collateral for verification..
+   const tx_deposit_for_verification = await program.methods.depositCollateralForVerification().accountsPartial({
+    authority: authority.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerUsdcAta: borrower_usdc_ata,
+    protocolVerificationVault: lending_pool_verification_vault,
+    rwaAsset: asset.publicKey,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+   }).signers([authority,borrower]).rpc();
+
+   console.log(`Succesfully deposited asset for verification: ${tx_deposit_for_verification}`);
+
+
+
+  //e Verifying the asset...
+  const borrower_state = await program.account.loanState.fetch(borrower_state_pda);
+  const verification_id = borrower_state.verificationId;
+
+  console.log("The verification id for the asset is: ",verification_id);
+
+  //Verifying the asset
+  let is_verified = false;
+  //e the purity wass wrong
+  const verify_asset_tx = await program.methods.verifyAsset(verification_id,is_verified,9999,new BN(2000)).accountsPartial({
+    signer: admin_one.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    adminRegistry: admin_registry,
+    borrowerState: borrower_state_pda,
+    borrowerUsdcAta: borrower_usdc_ata,
+    rwaAsset: asset.publicKey,
+    protocolVerificationVault: lending_pool_verification_vault,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+  }).signers([admin_one]).rpc();
+
+  const borrower_state_after = await program.account.loanState.fetch(borrower_state_pda);
+  console.log(`Asset is succesfully verified: ${verify_asset_tx}`);
+  const is_asset_verified = borrower_state_after.isVerified;
+  console.log(`Asset verification status: ${is_asset_verified}`); 
+
+    //Depositing collateral
+  const deposit_collateral = await program.methods.depositCollateral().accountsPartial({
+    authority: authority.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerUsdcAta: borrower_usdc_ata,
+    borrowerState: borrower_state_pda,
+    protocolVerificationVault: lending_pool_verification_vault,
+    rwaAsset: asset.publicKey,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+ }).signers([authority,borrower]).rpc();
+
+ 
+ let borrower_state_three = await program.account.loanState.fetch(borrower_state_pda);
+ let current_owner = borrower_state_three.currentOwnerAsset;
+ console.log("Current Owner of the asset is: ", current_owner.toBase58());
+ console.log("Collateral Verified and transferred to the lending pool succesfully. Now the borrower can borrow: ",deposit_collateral);
+
+ let value_before: number = Number((await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount);
+  console.log("Borrower USDC Balance before borrowing", value_before);
+
+  const borrow_tx = await program.methods.borrowAssets().accountsPartial({
+    authority: authority.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    borrowerState: borrower_state_pda,
+    borrowerUsdcAta: borrower_usdc_ata,
+    rwaAsset: assetAddress,
+    protocolVerificationVault: lending_pool_verification_vault,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+  }).signers([authority, borrower]).rpc();
+
+  console.log(`Borrowed successfully: ${borrow_tx}`);
+  
+  let value_after: number = Number((await connection.getTokenAccountBalance(borrower_usdc_ata)).value.amount);
+  console.log("Borrower USDC Balance after borrowing", value_after);
+  console.log("Borrowed succesfully", borrow_tx);
+  log_state("Total Borrowed", value_after - value_before);
+
+  console.log("Updating total debt as liquidation cannot happen when debt is 0...");
+  let amount = new BN(1100*10**6);
+   const update_tx = await program.methods.updateTotalDebt(amount).accountsPartial({
+    signer: admin_one.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    borrowerState: borrower_state_pda,
+    adminRegistry: admin_registry,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID
+   }).signers([admin_one]).rpc();
+   
+   const borrower_state_four = await program.account.loanState.fetch(borrower_state_pda);
+   const total_debt_left = borrower_state_four.totalDebtToRepay;
+   const collateral_value_before_updating: number = Number(borrower_state_four.collateralValueUsd);
+   console.log("Total debt to repay is: ", total_debt_left.toNumber());
+   console.log("Current Value of the collateral is: ", collateral_value_before_updating);
+
+   console.log("Draining the value of the collateral with the help of an admin function....");
+   let new_value  = new BN(collateral_value_before_updating/10);
+   const update_collateral_tx = await program.methods.updateCollateralValuation(new_value).accountsPartial({
+    signer: admin_one.publicKey,
+    borrower: borrower.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    borrowerState: borrower_state_pda,
+    adminRegistry: admin_registry,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID,
+   }).signers([admin_one]).rpc();
+
+   console.log("Collateral value updated succesfully");
+   const collateral_value_after_updating = (await program.account.loanState.fetch(borrower_state_pda)).collateralValueUsd;
+   log_state("Collateral Value after Updating...", collateral_value_after_updating.toNumber());
+
+  console.log("Starting liquidation tests...");
+  const liquidator_balance_before_liquidation : number= Number((await connection.getTokenAccountBalance(liquidator_usdc_ata)).value.amount);
+  log_state("Liquidator USDC Balance Before Liquidating...",liquidator_balance_before_liquidation);
+  log_state("Current Loan State: ", (await program.account.loanState.fetch(borrower_state_pda)).loanStatus);
+  let liquidation_threshold = (await program.account.lendingPool.fetch(lending_pool_pda)).liquidationThresholdBps;
+  log_state("Liquidation Threshold BPS Current", liquidation_threshold);
+  log_state("Current total debt to repay is: ", total_debt_left);
+
+  const health_factor = liquidation_threshold*collateral_value_after_updating.toNumber()/(total_debt_left.toNumber()*10000);
+  log_state("Current health factor latest: ", health_factor);
+
+  const liquidate_tx = await program.methods.liquidate().accountsPartial({
+    authority: authority.publicKey,
+    liquidator: liquidator.publicKey,
+    mintUsdc: mint_usdc,
+    lendingPool: lending_pool_pda,
+    lendingPoolUsdcAta: lending_pool_usdc_ata,
+    liquidatorUsdcAta: liquidator_usdc_ata,
+    borrowerState: borrower_state_pda,
+    rwaAsset: asset.publicKey,
+    protocolSeizeVault: lending_pool_seize_vault_PDA,
+    mockOracle: mock_oracle,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    tokenProgram: TOKEN_PROGRAM_ID,
+    systemProgram: SystemProgram.programId,
+    mplCoreProgram: MPL_CORE_PROGRAM_ID
+  }).signers([authority,liquidator]).rpc();
+
+  const liquidator_balance_after_liquidation: number= Number((await connection.getTokenAccountBalance(liquidator_usdc_ata)).value.amount);
+  log_state("Liquidator USDC Balance after Liquidation...", liquidator_balance_after_liquidation);
+  log_state("Liquidation Penalty Received: ",liquidator_balance_after_liquidation - liquidator_balance_before_liquidation); 
+ });
 })
 
 
 
 
+
+
+
 //HELPERS
-
-
-
 function log_state(str: String, state: any) { 
   console.log(`${str} : ${state}`)
 }

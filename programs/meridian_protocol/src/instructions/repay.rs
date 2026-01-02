@@ -108,7 +108,7 @@ impl<'info> Repay<'info> {
         self.borrower_state.principal_borrowed = 0;
         self.borrower_state.origination_fee = 0;
         self.borrower_state.outstanding_debt = 0;
-
+        self.borrower_state.total_debt_to_repay = 0 ;
         //Transferring asset back to user
         self.transfer_asset_to_user()?;
 

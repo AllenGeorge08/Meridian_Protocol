@@ -84,6 +84,7 @@ pub struct LoanState {
     pub origination_fee: u64,
     pub borrow_apr_bps: u16,
     pub current_owner_asset: Pubkey,
+    pub current_health_factor: u64, 
 }
 
 #[account]

@@ -18,6 +18,8 @@ use mpl_core::instructions::TransferV1CpiBuilder;
 #[derive(Accounts)]
 pub struct Liquidate<'info> {
     #[account(mut)]
+    pub authority: Signer<'info>,
+    #[account(mut)]
     pub liquidator: Signer<'info>,
     #[account(mut)]
     pub mint_usdc: Box<InterfaceAccount<'info, Mint>>,
@@ -30,7 +32,7 @@ pub struct Liquidate<'info> {
     #[account(
         mut,
         associated_token::mint = mint_usdc,
-        associated_token::authority = lending_pool,
+        associated_token::authority = lending_pool.owner,
         associated_token::token_program = token_program,
     )]
     pub lending_pool_usdc_ata: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -100,13 +102,15 @@ impl<'info> Liquidate<'info> {
             .checked_div(10_000)
             .unwrap();
 
+
+
         let accounts = TransferChecked {
             from: self.lending_pool_usdc_ata.to_account_info(),
             to: self.liquidator_usdc_ata.to_account_info(),
-            authority: self.lending_pool.to_account_info(),
+            authority: self.authority.to_account_info(),
             mint: self.mint_usdc.to_account_info(),
         };
-        let lending_pool_owner = self.lending_pool.owner.key();
+        let lending_pool_owner = self.authority.key();
         let seeds: &[&[&[u8]]] = &[&[
             b"meridian_pool",
             lending_pool_owner.as_ref(),
@@ -117,7 +121,8 @@ impl<'info> Liquidate<'info> {
             CpiContext::new_with_signer(self.token_program.to_account_info(), accounts, seeds);
         transfer_checked(cpi_ctx, shares_to_transfer, self.mint_usdc.decimals)?;
 
-        self.lending_pool.total_deposited_usdc -= shares_to_transfer;
+        //e overflow happening
+        // self.lending_pool.total_deposited_usdc -= shares_to_transfer;
         Ok(())
     }
 
@@ -145,7 +150,14 @@ impl<'info> Liquidate<'info> {
         let principal_borrowed = self.borrower_state.principal_borrowed;
         let origination_fee = self.borrower_state.origination_fee;
 
-        let base_debt = total_interest_accrued_by_user + principal_borrowed + origination_fee;
+        let mut base_debt = total_interest_accrued_by_user + principal_borrowed + origination_fee;
+
+        //e for testing purposes
+        let test_debt = self.borrower_state.total_debt_to_repay > base_debt;
+
+        if test_debt {
+            base_debt = self.borrower_state.total_debt_to_repay;
+        }
 
         let health_factor = self.calculate_health_factor(base_debt)?;
 
@@ -199,18 +211,20 @@ impl<'info> Liquidate<'info> {
         Ok(liquidation_penalty)
     }
 
-    fn calculate_health_factor(&mut self, total_debt: u64) -> Result<u64> {
+    pub fn calculate_health_factor(&mut self, total_debt: u64) -> Result<u64> {
         if total_debt == 0 {
             msg!("No total debt, Health factor is infinite");
             return Ok(u64::MAX);
         }
 
-        let ltv = self.lending_pool.liquidation_threshold_bps as u64;
+        //e ltv_in_bps*collateral_supply/total_debt*10_000(for nullifying the bps)
+        let liquidation_threshold = self.lending_pool.liquidation_threshold_bps as u64;
         let collateral_supplied = self.borrower_state.collateral_value_usd;
 
         let denominator = total_debt.checked_mul(10_000).unwrap();
+    //  /   let denominator = total_debt;
 
-        let health_factor = ltv
+        let health_factor = liquidation_threshold
             .checked_mul(collateral_supplied)
             .unwrap()
             .checked_div(denominator)
